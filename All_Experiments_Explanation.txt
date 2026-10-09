@@ -1,0 +1,582 @@
+﻿================================================================================
+         BOOKMYMOVIE - REACT WEB APPLICATION
+         UNIT 3 : ALL EXPERIMENTS EXPLANATION GUIDE
+         (For Staff Reference and Viva / Lab Evaluation)
+         Technology: React + Vite + JavaScript (JSX)
+================================================================================
+
+
+================================================================================
+  OVERVIEW OF THE PROJECT
+================================================================================
+
+"BookMyMovie" is a Movie Ticket Booking Web Application built progressively
+across 4 experiments. Each experiment introduces new React concepts on top
+of the previous one.
+
+  Experiment 1  -->  React Hooks (useState, useMemo, useRef, useCallback)
+  Experiment 2  -->  Context API and Custom Hooks
+  Experiment 3  -->  React Router (Multi-Page Navigation)
+  Experiment 4  -->  Authentication, Protected Routes, Error Handling
+
+All experiments build the SAME application -- BookMyMovie -- but each one
+adds more professional features and better React architecture.
+
+================================================================================
+
+
+================================================================================
+  EXPERIMENT 1 -- REACT HOOKS
+  Topic: useState, useMemo, useRef, useCallback
+================================================================================
+
+WHAT WAS BUILT:
+---------------
+A single-page Movie Ticket Booking app where everything lives in ONE file
+(App.jsx). The student learns how to manage state, optimize performance,
+and access DOM elements using React hooks.
+
+KEY CONCEPTS EXPLAINED:
+-----------------------
+
+1. useState
+   - Used to store and update data that can change in the app.
+   - Examples used in this experiment:
+       const [selectedMovie, setSelectedMovie]       = useState(null);
+       const [selectedTheatre, setSelectedTheatre]   = useState(null);
+       const [selectedTime, setSelectedTime]         = useState(null);
+       const [selectedSeats, setSelectedSeats]       = useState([]);
+       const [bookingConfirmed, setBookingConfirmed] = useState(false);
+       const [searchQuery, setSearchQuery]           = useState('');
+   - Every time state is updated using a setter (e.g. setSelectedMovie),
+     React re-renders the component to show the new data.
+
+2. useMemo
+   - Used to avoid doing the same heavy calculation again and again.
+   - Example: filtering movies based on the search input.
+       const filteredMovies = useMemo(() => {
+         if (searchQuery === '') return MOVIES;
+         return MOVIES.filter(movie =>
+           movie.title.toLowerCase().includes(searchQuery.toLowerCase())
+         );
+       }, [searchQuery]);
+   - The filter only runs when 'searchQuery' changes -- not on every render.
+
+3. useRef
+   - Used to directly access a DOM element (like an input box) without
+     causing a re-render.
+   - Example: focusing on the search box when the page loads.
+       const searchInputRef = useRef(null);
+       searchInputRef.current.focus();
+
+4. useCallback
+   - Used to wrap a function so it is not recreated every time the
+     component re-renders. Useful for performance with child components.
+   - Example:
+       const handleSelectMovie = useCallback((movie) => {
+         setSelectedMovie(movie);
+         setSelectedTheatre(null);
+         ...
+       }, []);
+
+COMPONENTS IN EXPERIMENT 1:
+----------------------------
+  - App.jsx           --> Root component, all state and logic lives here
+  - Header.jsx        --> App title and navigation bar
+  - Home.jsx          --> Welcome message
+  - SearchBar.jsx     --> Search input using useRef
+  - MovieList.jsx     --> Displays 4 movies (Leo, GOAT, Dragon, Coolie)
+  - TheatreList.jsx   --> Select a theatre (3 theatres)
+  - ShowTiming.jsx    --> Select a show time (Morning, Matinee, Evening, Night)
+  - SeatSelection.jsx --> Select seats (A1 to A10)
+  - BookingSummary.jsx--> Shows total and Confirm Booking button
+  - Footer.jsx        --> App footer
+
+MOVIES IN THIS EXPERIMENT:
+---------------------------
+  1. Leo     (Action, 2023)
+  2. GOAT    (Action, 2024)
+  3. Dragon  (Fantasy, 2025)
+  4. Coolie  (Action, 2025)
+
+TICKET PRICE: Rs. 150 per seat
+
+HOW THE BOOKING WORKS:
+-----------------------
+  Step 1: Search for a movie in the search bar
+  Step 2: Select a movie from the list
+  Step 3: Select a theatre
+  Step 4: Select a show time
+  Step 5: Select seats (A1 to A10)
+  Step 6: Click "Confirm Booking" to confirm
+
+VIVA QUESTIONS FOR EXPERIMENT 1:
+---------------------------------
+  Q: What is useState used for?
+  A: To store data that can change. When state changes, React re-renders
+     the component.
+
+  Q: What is the difference between useRef and useState?
+  A: useRef does NOT cause a re-render when changed. It is used to access
+     DOM elements directly.
+
+  Q: What is useMemo used for?
+  A: To cache an expensive calculation and only recalculate when its
+     dependencies change.
+
+  Q: What is useCallback used for?
+  A: To cache a function definition so it is not recreated on every render.
+
+================================================================================
+
+
+================================================================================
+  EXPERIMENT 2 -- CONTEXT API AND CUSTOM HOOKS
+  Topic: createContext, useContext, Custom Hook (useBooking)
+================================================================================
+
+WHAT WAS BUILT:
+---------------
+The same BookMyMovie app, but now state management is moved OUT of App.jsx
+into a separate Context file. This makes the code cleaner and avoids
+"prop drilling" (passing data through many layers of components).
+
+PROBLEM SOLVED:
+---------------
+In Experiment 1, App.jsx had all the state and had to pass it down to
+every component as props. This is called "prop drilling" and becomes messy
+in large apps.
+
+Experiment 2 solves this by using the React Context API so any component
+can access shared state directly without props.
+
+KEY CONCEPTS EXPLAINED:
+-----------------------
+
+1. createContext
+   - Creates a shared "container" (Context) that holds global state.
+       const BookingContext = createContext();
+
+2. Provider
+   - The Provider component wraps the entire app and makes the shared
+     state available to all child components.
+       <BookingContext.Provider value={contextValue}>
+         {children}
+       </BookingContext.Provider>
+
+3. useContext
+   - Used inside any component to read the shared state from the Context.
+       const value = useContext(BookingContext);
+
+4. Custom Hook -- useBooking()
+   - A custom hook created to simplify reading from BookingContext.
+   - Instead of writing useContext(BookingContext) everywhere, components
+     just call useBooking().
+       function useBooking() {
+         return useContext(BookingContext);
+       }
+   - Usage in any component:
+       const { selectedMovie, handleSelectMovie } = useBooking();
+
+NEW FILES IN EXPERIMENT 2:
+---------------------------
+  - src/context/BookingContext.jsx  --> Context and Provider
+  - src/hooks/useBooking.js         --> Custom hook
+
+WHAT CHANGED FROM EXPERIMENT 1:
+---------------------------------
+  - App.jsx no longer has any state or logic. It just renders the layout.
+  - All state (selectedMovie, selectedSeats, etc.) moved to BookingContext.
+  - All components now use useBooking() hook instead of receiving props.
+  - The app architecture is now more professional and scalable.
+
+VIVA QUESTIONS FOR EXPERIMENT 2:
+---------------------------------
+  Q: What is Context API used for?
+  A: To share state across multiple components without passing props
+     manually at each level (avoids prop drilling).
+
+  Q: What is a Custom Hook?
+  A: A regular JavaScript function that starts with "use" and calls
+     other hooks inside it. It helps reuse logic across components.
+
+  Q: What is the difference between props and Context?
+  A: Props are passed from parent to child manually. Context makes data
+     available to any component in the tree without passing explicitly.
+
+  Q: What is a Provider in React?
+  A: A component that wraps the app and supplies the shared context value
+     to all child components.
+
+================================================================================
+
+
+================================================================================
+  EXPERIMENT 3 -- REACT ROUTER (MULTI-PAGE NAVIGATION)
+  Topic: BrowserRouter, Routes, Route, NavLink, useNavigate
+================================================================================
+
+WHAT WAS BUILT:
+---------------
+The BookMyMovie app is converted from a single-page app to a MULTI-PAGE app
+using React Router DOM. The app now has 5 different pages with separate URLs.
+
+KEY CONCEPTS EXPLAINED:
+-----------------------
+
+1. React Router DOM
+   - A library that enables navigation between pages in React apps.
+   - Installed using: npm install react-router-dom
+
+2. BrowserRouter
+   - The root component that enables routing throughout the app.
+       <BrowserRouter>
+         <App />
+       </BrowserRouter>
+
+3. Routes and Route
+   - Define which component to show for which URL path.
+       <Routes>
+         <Route path="/"        element={<HomePage />} />
+         <Route path="/movies"  element={<MoviesPage />} />
+         <Route path="/booking" element={<BookingPage />} />
+         <Route path="/summary" element={<SummaryPage />} />
+         <Route path="*"        element={<NotFound />} />
+       </Routes>
+
+4. NavLink
+   - Like an <a> tag but for React Router. Adds "active" class
+     automatically when the current URL matches the link.
+       <NavLink to="/movies">Movies</NavLink>
+
+5. useNavigate
+   - A hook used to programmatically move to a different page.
+       const navigate = useNavigate();
+       navigate('/booking');
+
+THE 5 PAGES:
+------------
+  URL: /         --> HomePage.jsx    (Welcome screen with feature cards)
+  URL: /movies   --> MoviesPage.jsx  (Search and select a movie)
+  URL: /booking  --> BookingPage.jsx (Choose theatre, date, time, seats)
+  URL: /summary  --> SummaryPage.jsx (View digital ticket and confirm)
+  URL: *         --> NotFound.jsx    (404 error page for wrong URLs)
+
+BOOKING FLOW (Step by step navigation):
+----------------------------------------
+  Home Page
+    --> Click "Book Now"
+    --> Movies Page (select a movie)
+    --> Click "Continue to Booking"
+    --> Booking Page (select theatre, date, time, seats)
+    --> Click "Continue to Summary"
+    --> Summary Page (view ticket, confirm booking)
+
+WHAT CHANGED FROM EXPERIMENT 2:
+---------------------------------
+  - App.jsx now sets up Routes instead of rendering everything at once.
+  - Components are split into separate Page files under src/pages/.
+  - Navigation is handled by React Router instead of toggling visibility.
+  - The browser URL changes as the user navigates (proper multi-page feel).
+  - Header has navigation links using NavLink.
+
+NEW FILES IN EXPERIMENT 3:
+---------------------------
+  - src/pages/HomePage.jsx
+  - src/pages/MoviesPage.jsx
+  - src/pages/BookingPage.jsx
+  - src/pages/SummaryPage.jsx
+  - src/pages/NotFound.jsx
+
+UPDATED MOVIES (10 Upcoming Blockbusters with Posters):
+--------------------------------------------------------
+  1.  Avengers: Doomsday             (Action / Superhero,    2026)
+  2.  Ramayana: Part 1               (Mythology / Epic,      2026)
+  3.  The Hunger Games: Sunrise      (Sci-Fi / Adventure,    2026)
+  4.  Jailer 2                       (Action / Thriller,     2026)
+  5.  The Mandalorian and Grogu      (Sci-Fi / Adventure,    2026)
+  6.  Supergirl: Woman of Tomorrow   (Superhero / Sci-Fi,    2026)
+  7.  Michael                        (Biographical Drama,    2025)
+  8.  Scream 7                       (Horror / Thriller,     2025)
+  9.  Dune: Part Three               (Sci-Fi / Epic,         2026)
+  10. The Cat in the Hat             (Animation / Family,    2026)
+
+UPDATED SEAT MAP (30 Seats):
+-----------------------------
+  Row A: A1  A2  A3  A4  A5  A6  A7  A8  A9  A10
+  Row B: B1  B2  B3  B4  B5  B6  B7  B8  B9  B10
+  Row C: C1  C2  C3  C4  C5  C6  C7  C8  C9  C10
+  Total: 30 seats across 3 rows
+
+DATE AND TIME SELECTION:
+-------------------------
+  - 7 dates shown (Today, Tomorrow, plus next 5 days -- clickable chips)
+  - 4 show times:
+      10:00 AM (Morning)
+       2:00 PM (Matinee)
+       6:00 PM (Evening)
+       9:00 PM (Night)
+
+VIVA QUESTIONS FOR EXPERIMENT 3:
+---------------------------------
+  Q: What is React Router used for?
+  A: To create multiple pages in a React app and navigate between them
+     without reloading the browser.
+
+  Q: What is the difference between NavLink and Link?
+  A: NavLink adds an "active" CSS class when its URL matches the
+     current page. Link is a basic navigation element with no active state.
+
+  Q: What is useNavigate?
+  A: A React Router hook that lets you navigate to a different page
+     programmatically (e.g., after button click).
+
+  Q: What happens when the user types a wrong URL?
+  A: The * Route catches all unmatched URLs and shows the NotFound (404)
+     page with a Back to Home button.
+
+  Q: What is BrowserRouter?
+  A: A component from React Router that wraps the app and provides routing
+     context so all Route and NavLink components can work.
+
+================================================================================
+
+
+================================================================================
+  EXPERIMENT 4 -- AUTHENTICATION AND PROTECTED ROUTES
+  Topic: AuthContext, Login Page, ProtectedRoute, localStorage, Error Handling
+================================================================================
+
+WHAT WAS BUILT:
+---------------
+A Login system is added to the BookMyMovie app. Users must log in before
+they can access the Movies, Booking, or Summary pages. If they try to
+access these pages without logging in, they are redirected to the Login page.
+
+KEY CONCEPTS EXPLAINED:
+-----------------------
+
+1. Authentication Context (AuthContext)
+   - A second Context created just for managing login state.
+   - Stores whether the user is logged in (isAuthenticated) and their
+     username.
+       const AuthContext = createContext();
+
+2. localStorage
+   - Used to save the login session in the browser storage so the user
+     stays logged in even after refreshing the page.
+       localStorage.setItem('isAuthenticated', 'true');
+       localStorage.getItem('isAuthenticated');
+
+3. Login Credentials (Hard-coded for Lab):
+       Username: admin
+       Password: 1234
+
+4. ProtectedRoute Component
+   - A wrapper component that checks if the user is logged in.
+   - If NOT logged in: redirects to /login page automatically.
+   - If logged in: shows the requested page.
+       function ProtectedRoute({ children }) {
+         const { isAuthenticated } = useAuth();
+         if (!isAuthenticated) return <Navigate to="/login" />;
+         return children;
+       }
+
+5. Custom Hook -- useAuth()
+   - Similar to useBooking(), this custom hook reads from AuthContext.
+       function useAuth() {
+         return useContext(AuthContext);
+       }
+
+6. Error Handling (4 types):
+   - Login Error:     Wrong username or password shows an error message.
+   - Protected Route: Unauthorized users are redirected to /login.
+   - Booking Error:   Cannot proceed unless Movie, Theatre, Date, Time,
+                      and at least 1 Seat is selected.
+   - 404 Error:       Wrong URL shows the Not Found page.
+
+7. Dynamic Header:
+   - When NOT logged in: Only "Home" and "Login" links are visible.
+   - When logged in: Shows "Movies", "Booking", "Summary", and "Logout".
+   - Username is displayed in the header after login (e.g., "Hello, admin").
+
+NEW FILES IN EXPERIMENT 4:
+---------------------------
+  - src/pages/LoginPage.jsx           --> Login form (username + password)
+  - src/components/ProtectedRoute.jsx --> Route guard component
+  - src/context/AuthContext.jsx       --> Authentication context and provider
+  - src/hooks/useAuth.js              --> Custom hook for auth state
+
+PROTECTED ROUTES SETUP:
+------------------------
+  /movies  --> Wrapped in ProtectedRoute (login required)
+  /booking --> Wrapped in ProtectedRoute (login required)
+  /summary --> Wrapped in ProtectedRoute (login required)
+  /login   --> Public (no protection needed)
+  /        --> Public (Home page, everyone can see)
+
+FULL BOOKING FLOW (EXPERIMENT 4):
+-----------------------------------
+  1. User visits the app --> Sees Home Page
+  2. User clicks "Movies" or "Book Now"
+     --> Redirected to /login (because not logged in)
+  3. User enters: admin / 1234 and clicks Login
+     --> Login state saved to localStorage
+     --> Redirected to /movies
+  4. User searches for a movie and selects it
+  5. User clicks "Continue to Booking"
+     --> Goes to /booking page
+  6. User selects Theatre, Date, Show Time, and Seats
+  7. User clicks "Continue to Summary"
+     --> Goes to /summary page
+  8. User clicks "Confirm Booking"
+     --> Digital Ticket generated with all details:
+         Movie Name | Theatre | Date | Show Time | Seats | Total Amount
+  9. User clicks "Logout"
+     --> localStorage is cleared
+     --> Redirected back to /login
+
+WHAT CHANGED FROM EXPERIMENT 3:
+---------------------------------
+  - Login page added (src/pages/LoginPage.jsx)
+  - AuthContext added to manage login state globally
+  - ProtectedRoute guards /movies, /booking, /summary
+  - Header is now dynamic based on login/logout state
+  - localStorage used to persist the session on page refresh
+
+VIVA QUESTIONS FOR EXPERIMENT 4:
+---------------------------------
+  Q: What is Authentication?
+  A: Verifying a user's identity before giving them access to the app.
+     In this project, the user must enter the correct username and password.
+
+  Q: What is a Protected Route?
+  A: A route that can only be accessed by logged-in users. If the user
+     is not authenticated, they are redirected to the Login page.
+
+  Q: What is localStorage?
+  A: A browser storage that saves key-value data even after the page is
+     refreshed or the browser is closed. Used here to persist login state.
+
+  Q: What happens if you access /movies without logging in?
+  A: The ProtectedRoute component checks isAuthenticated. Since it is
+     false, it redirects the user to /login automatically.
+
+  Q: How does the app know the user is still logged in after refresh?
+  A: The AuthContext reads from localStorage on load. If "isAuthenticated"
+     is "true" in localStorage, the user remains logged in.
+
+  Q: What is the difference between AuthContext and BookingContext?
+  A: AuthContext manages login state (who is logged in).
+     BookingContext manages booking state (which movie, seats, etc.).
+
+================================================================================
+
+
+================================================================================
+  QUICK COMPARISON TABLE -- ALL 4 EXPERIMENTS
+================================================================================
+
+Feature                        | Exp 1 | Exp 2 | Exp 3 | Exp 4
+-------------------------------|-------|-------|-------|-------
+React Hooks (useState etc.)    |  YES  |  YES  |  YES  |  YES
+Context API (createContext)     |  NO   |  YES  |  YES  |  YES
+Custom Hook (useBooking)       |  NO   |  YES  |  YES  |  YES
+React Router (Multi-page)      |  NO   |  NO   |  YES  |  YES
+Login Page                     |  NO   |  NO   |  NO   |  YES
+Authentication (AuthContext)    |  NO   |  NO   |  NO   |  YES
+Protected Routes               |  NO   |  NO   |  NO   |  YES
+localStorage Session           |  NO   |  NO   |  NO   |  YES
+Custom Hook (useAuth)          |  NO   |  NO   |  NO   |  YES
+Number of Movies               |   4   |   4   |  10   |  10
+Number of Seats                |  10   |  10   |  30   |  30
+Date Selection                 |  NO   |  NO   |  YES  |  YES
+Movie Poster Images            |  NO   |  NO   |  YES  |  YES
+Number of Pages                |   1   |   1   |   5   |   6
+Error Handling (4 types)       |  NO   |  NO   |  NO   |  YES
+
+
+================================================================================
+  REACT HOOKS QUICK REFERENCE (Common in All Experiments)
+================================================================================
+
+HOOK            SYNTAX                          PURPOSE
+----------------|-------------------------------|------------------------------
+useState        | const [val, setVal] =         | Store changeable data.
+                | useState(initial)             | Triggers re-render on update.
+----------------|-------------------------------|------------------------------
+useMemo         | const result =                | Cache computed value.
+                | useMemo(() => value, [deps])  | Recalculates only when deps
+                |                               | change.
+----------------|-------------------------------|------------------------------
+useRef          | const ref = useRef(null)      | Access DOM element directly.
+                | ref.current.focus()           | Does NOT trigger re-render.
+----------------|-------------------------------|------------------------------
+useCallback     | const fn =                    | Cache function definition.
+                | useCallback(() => {}, [deps]) | Prevents recreating on each
+                |                               | render.
+----------------|-------------------------------|------------------------------
+useContext      | const val =                   | Read value from a Context.
+                | useContext(SomeContext)        | Used inside custom hooks.
+----------------|-------------------------------|------------------------------
+useNavigate     | const nav = useNavigate()     | React Router hook to navigate
+                | nav('/movies')                | programmatically.
+----------------|-------------------------------|------------------------------
+
+
+================================================================================
+  FINAL FILE STRUCTURE (After All 4 Experiments)
+================================================================================
+
+BookMyMovie/
+|-- public/
+|   |-- posters/                  (10 movie poster images .jpg)
+|-- src/
+|   |-- context/
+|   |   |-- AuthContext.jsx       (Login state: isAuthenticated, username)
+|   |   |-- BookingContext.jsx    (Booking state: movie, seats, date, time)
+|   |-- hooks/
+|   |   |-- useAuth.js            (Custom hook for auth)
+|   |   |-- useBooking.js         (Custom hook for booking)
+|   |-- pages/
+|   |   |-- HomePage.jsx          --> / (public)
+|   |   |-- LoginPage.jsx         --> /login (public)
+|   |   |-- MoviesPage.jsx        --> /movies (PROTECTED)
+|   |   |-- BookingPage.jsx       --> /booking (PROTECTED)
+|   |   |-- SummaryPage.jsx       --> /summary (PROTECTED)
+|   |   |-- NotFound.jsx          --> * (404 error page)
+|   |-- components/
+|   |   |-- Header.jsx            (Dynamic nav: login/logout aware)
+|   |   |-- Footer.jsx
+|   |   |-- ProtectedRoute.jsx    (Route guard component)
+|   |   |-- SearchBar.jsx         (Search input with useRef)
+|   |   |-- MovieList.jsx         (10 movie cards with posters)
+|   |   |-- TheatreList.jsx       (Theatre selection)
+|   |   |-- ShowTiming.jsx        (Date chips + time chips)
+|   |   |-- SeatSelection.jsx     (30 seats: Row A, B, C x 10)
+|   |   |-- BookingSummary.jsx    (Digital ticket + confirm button)
+|   |-- App.jsx                   (Router setup and layout)
+|   |-- App.css                   (All component styles)
+|   |-- index.css                 (Global reset and fonts)
+|   |-- main.jsx                  (ReactDOM entry point)
+|-- index.html
+|-- package.json
+|-- vite.config.js
+
+
+================================================================================
+  LOGIN CREDENTIALS (For Lab Demonstration)
+================================================================================
+
+  Username : admin
+  Password : 1234
+
+  NOTE: These credentials are hard-coded for lab demonstration purposes.
+  In a real application, credentials would be verified against a backend
+  server and a secure database. Passwords would be hashed (not plain text).
+
+
+================================================================================
+  END OF EXPLANATION GUIDE
+  Prepared for: BookMyMovie -- Unit 3 Lab (React + Vite)
+================================================================================

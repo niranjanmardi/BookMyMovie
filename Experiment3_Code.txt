@@ -1,0 +1,1749 @@
+================================================================================
+UNIT 3 - EXPERIMENT 3 RECORD
+Movie Ticket Booking Web Application (BookMyMovie)
+Topic: Movie Booking Navigation using React Router
+================================================================================
+
+SUMMARY OF EXPERIMENT 3:
+- React Router DOM: Configured BrowserRouter, Routes, Route, NavLink, and useNavigate
+- Multi-Page Architecture (5 Pages):
+    1. /         -> HomePage.jsx    (Welcome banner & feature highlights)
+    2. /movies   -> MoviesPage.jsx  (Movie search & selection for Leo, GOAT, Dragon, Coolie)
+    3. /booking  -> BookingPage.jsx (Theatre, Show Timing, and 10 Cinema Seats A1-A10)
+    4. /summary  -> SummaryPage.jsx (Digital Ticket Pass & Booking Confirmation)
+    5. /*        -> NotFound.jsx    (404 Page Not Found with Back to Home button)
+- Context API & Custom Hook: Retained BookingContext and useBooking() from Experiment 2
+- Clean, beginner-friendly student-level styling
+
+--------------------------------------------------------------------------------
+INDEX OF FILES:
+1. src/App.jsx
+2. src/pages/HomePage.jsx
+3. src/pages/MoviesPage.jsx
+4. src/pages/BookingPage.jsx
+5. src/pages/SummaryPage.jsx
+6. src/pages/NotFound.jsx
+7. src/components/Header.jsx
+8. src/components/Footer.jsx
+9. src/components/SearchBar.jsx
+10. src/components/MovieList.jsx
+11. src/components/TheatreList.jsx
+12. src/components/ShowTiming.jsx
+13. src/components/SeatSelection.jsx
+14. src/components/BookingSummary.jsx
+15. src/context/BookingContext.jsx
+16. src/hooks/useBooking.js
+17. src/App.css
+18. src/index.css
+================================================================================
+
+
+================================================================================
+FILE 1: src/App.jsx
+================================================================================
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+
+// Context
+import { BookingProvider } from './context/BookingContext';
+
+// Components
+import Header from './components/Header';
+import Footer from './components/Footer';
+
+// Pages
+import HomePage from './pages/HomePage';
+import MoviesPage from './pages/MoviesPage';
+import BookingPage from './pages/BookingPage';
+import SummaryPage from './pages/SummaryPage';
+import NotFound from './pages/NotFound';
+
+import './App.css';
+
+function App() {
+  return (
+    <BrowserRouter>
+      <BookingProvider>
+        <div className="app-wrapper">
+          <Header />
+          <main className="main-content">
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/movies" element={<MoviesPage />} />
+              <Route path="/booking" element={<BookingPage />} />
+              <Route path="/summary" element={<SummaryPage />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </main>
+          <Footer />
+        </div>
+      </BookingProvider>
+    </BrowserRouter>
+  );
+}
+
+export default App;
+
+
+================================================================================
+FILE 2: src/pages/HomePage.jsx
+================================================================================
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+
+function HomePage() {
+  const navigate = useNavigate();
+
+  return (
+    <div className="home-page">
+      {/* Hero Section */}
+      <section className="hero-section">
+        <span className="hero-pill">🎬 React Router Navigation • Unit 3 Experiment 3</span>
+        <h1 className="hero-title">
+          Book Your <span>Movie Experience</span>
+        </h1>
+        <p className="hero-desc">
+          Discover movies, choose your theatre, select your seats and enjoy the show.
+          Fast, effortless cinema ticket booking at your fingertips.
+        </p>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={() => navigate('/movies')}
+        >
+          <span>Explore Movies</span>
+          <span>→</span>
+        </button>
+      </section>
+
+      {/* Feature Cards */}
+      <section className="features-grid">
+        <div className="feature-card">
+          <div className="feature-icon">🎬</div>
+          <h3 className="feature-title">Latest Movies</h3>
+          <p className="feature-text">
+            Browse blockbuster titles with live search and detailed showtimes across genres.
+          </p>
+        </div>
+
+        <div className="feature-card">
+          <div className="feature-icon">🏛️</div>
+          <h3 className="feature-title">Best Theatres</h3>
+          <p className="feature-text">
+            Choose from top multiplexes including PVR Cinemas, INOX, and Sathyam Cinemas.
+          </p>
+        </div>
+
+        <div className="feature-card">
+          <div className="feature-icon">💺</div>
+          <h3 className="feature-title">Easy Seat Booking</h3>
+          <p className="feature-text">
+            Interactive seat map to pick your favorite spots with instant price calculation.
+          </p>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export default HomePage;
+
+
+================================================================================
+FILE 3: src/pages/MoviesPage.jsx
+================================================================================
+import React, { useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import useBooking from '../hooks/useBooking';
+import SearchBar from '../components/SearchBar';
+import MovieList from '../components/MovieList';
+
+function MoviesPage() {
+  const navigate = useNavigate();
+  const searchInputRef = useRef(null);
+  const { searchQuery, handleSearchChange, selectedMovie } = useBooking();
+
+  return (
+    <div className="movies-page">
+      <div className="page-header">
+        <h2 className="page-title">🎬 Movies Selection</h2>
+        <p className="page-subtitle">
+          Search and select a movie to proceed to booking
+        </p>
+      </div>
+
+      {/* Search Bar */}
+      <SearchBar
+        searchQuery={searchQuery}
+        onSearchChange={handleSearchChange}
+        searchInputRef={searchInputRef}
+      />
+
+      {/* Movies Grid */}
+      <MovieList onSelectAndContinue={() => {}} />
+
+      {/* Continue Bar when a movie is selected */}
+      {selectedMovie && (
+        <div className="continue-bar">
+          <div className="continue-bar-info">
+            <span style={{ fontSize: '28px' }}>🎟️</span>
+            <div>
+              <div style={{ fontSize: '13px', color: '#94a3b8' }}>Selected Movie</div>
+              <div style={{ fontSize: '17px', fontWeight: 700, color: '#ffffff' }}>
+                {selectedMovie.title} <span style={{ color: '#818cf8', fontWeight: 500, fontSize: '14px' }}>({selectedMovie.genre} • {selectedMovie.year})</span>
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => navigate('/booking')}
+          >
+            <span>Continue to Booking</span>
+            <span>→</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default MoviesPage;
+
+
+================================================================================
+FILE 4: src/pages/BookingPage.jsx
+================================================================================
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import useBooking from '../hooks/useBooking';
+import TheatreList from '../components/TheatreList';
+import ShowTiming from '../components/ShowTiming';
+import SeatSelection from '../components/SeatSelection';
+
+function BookingPage() {
+  const navigate = useNavigate();
+  const {
+    selectedMovie,
+    selectedTheatre,
+    selectedTime,
+    selectedSeats,
+    totalAmount,
+    ticketPrice,
+  } = useBooking();
+
+  // Condition to allow continuing to summary
+  const canProceed =
+    selectedMovie && selectedTheatre && selectedTime && selectedSeats.length > 0;
+
+  // Validation message helper
+  const getValidationMessage = () => {
+    if (!selectedMovie) return 'Please select a movie from the Movies page first.';
+    if (!selectedTheatre) return '👉 Please choose a theatre above to continue.';
+    if (!selectedTime) return '👉 Please choose a show timing above to continue.';
+    if (selectedSeats.length === 0) return '👉 Please select at least 1 seat to continue.';
+    return null;
+  };
+
+  const validationMessage = getValidationMessage();
+
+  return (
+    <div className="booking-page">
+      <div className="page-header">
+        <h2 className="page-title">🎟️ Seat & Show Booking</h2>
+        <p className="page-subtitle">
+          Select your theatre, preferred show timing, and choose your cinema seats
+        </p>
+      </div>
+
+      {!selectedMovie ? (
+        <div className="booking-card" style={{ textAlign: 'center', padding: '48px 24px' }}>
+          <div style={{ fontSize: '48px', marginBottom: '14px' }}>🎬</div>
+          <h3 style={{ fontSize: '20px', color: '#ffffff', marginBottom: '8px' }}>
+            No Movie Selected
+          </h3>
+          <p style={{ color: '#94a3b8', marginBottom: '24px' }}>
+            Please select a movie before choosing theatre and seats.
+          </p>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => navigate('/movies')}
+          >
+            Browse Movies Now
+          </button>
+        </div>
+      ) : (
+        <div className="booking-layout">
+          {/* 1. Selected Movie Section */}
+          <div className="booking-card">
+            <div className="booking-card-header">
+              <span>🎬</span>
+              <span>1. Selected Movie</span>
+            </div>
+            <div className="selected-movie-badge">
+              <div>
+                <div style={{ fontSize: '18px', fontWeight: 700, color: '#ffffff' }}>
+                  {selectedMovie.title}
+                </div>
+                <div style={{ fontSize: '13px', color: '#94a3b8', marginTop: '3px' }}>
+                  {selectedMovie.genre} • {selectedMovie.year}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => navigate('/movies')}
+              >
+                Change Movie
+              </button>
+            </div>
+          </div>
+
+          {/* 2. Theatre Selection Section */}
+          <div className="booking-card">
+            <div className="booking-card-header">
+              <span>🏛️</span>
+              <span>2. Choose Theatre</span>
+            </div>
+            <TheatreList />
+          </div>
+
+          {/* 3. Show Timing Section */}
+          <div className="booking-card">
+            <div className="booking-card-header">
+              <span>⏰</span>
+              <span>3. Choose Show Timing</span>
+            </div>
+            <ShowTiming />
+          </div>
+
+          {/* 4. Seat Selection Section */}
+          <div className="booking-card">
+            <div className="booking-card-header">
+              <span>💺</span>
+              <span>4. Select Seats (Rs. {ticketPrice} per seat)</span>
+            </div>
+            <SeatSelection />
+          </div>
+
+          {/* 5. Price Details & Continue */}
+          <div className="booking-card">
+            <div className="booking-card-header">
+              <span>💳</span>
+              <span>5. Price Details</span>
+            </div>
+
+            <div className="price-breakdown">
+              <div className="price-row">
+                <span>Selected Seats:</span>
+                <span style={{ color: selectedSeats.length > 0 ? '#a78bfa' : '#64748b', fontWeight: 600 }}>
+                  {selectedSeats.length > 0 ? selectedSeats.join(', ') : 'None'}
+                </span>
+              </div>
+              <div className="price-row">
+                <span>Tickets:</span>
+                <span style={{ color: '#ffffff', fontWeight: 600 }}>
+                  {selectedSeats.length}
+                </span>
+              </div>
+              <div className="price-row">
+                <span>Price per Ticket:</span>
+                <span style={{ color: '#ffffff', fontWeight: 600 }}>
+                  Rs. {ticketPrice}
+                </span>
+              </div>
+              <div className="price-row total-row">
+                <span>Total:</span>
+                <span className="total-amount">Rs. {totalAmount}</span>
+              </div>
+            </div>
+
+            {validationMessage && (
+              <div
+                style={{
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#fca5a5',
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  marginBottom: '16px',
+                }}
+              >
+                {validationMessage}
+              </div>
+            )}
+
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={!canProceed}
+              onClick={() => navigate('/summary')}
+              style={{ width: '100%' }}
+            >
+              <span>Continue to Summary</span>
+              <span>→</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default BookingPage;
+
+
+================================================================================
+FILE 5: src/pages/SummaryPage.jsx
+================================================================================
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import useBooking from '../hooks/useBooking';
+import BookingSummary from '../components/BookingSummary';
+
+function SummaryPage() {
+  const navigate = useNavigate();
+  const { selectedMovie, bookingConfirmed, handleResetBooking } = useBooking();
+
+  const handleBookAnother = () => {
+    handleResetBooking();
+    navigate('/movies');
+  };
+
+  return (
+    <div className="summary-page">
+      <div className="page-header" style={{ textAlign: 'center' }}>
+        <h2 className="page-title">🎟️ Booking Summary & Ticket</h2>
+        <p className="page-subtitle">
+          Review your cinema tickets and confirm your reservation pass
+        </p>
+      </div>
+
+      {!selectedMovie ? (
+        <div
+          className="booking-card"
+          style={{ maxWidth: '540px', margin: '0 auto', textAlign: 'center', padding: '48px 24px' }}
+        >
+          <div style={{ fontSize: '48px', marginBottom: '14px' }}>🎟️</div>
+          <h3 style={{ fontSize: '20px', color: '#ffffff', marginBottom: '8px' }}>
+            No Active Booking
+          </h3>
+          <p style={{ color: '#94a3b8', marginBottom: '24px' }}>
+            You haven't selected any tickets yet. Please choose a movie and seats first.
+          </p>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => navigate('/movies')}
+          >
+            Browse Movies
+          </button>
+        </div>
+      ) : (
+        <div>
+          {/* Ticket Card Component */}
+          <BookingSummary />
+
+          {/* Navigation Action Buttons below ticket */}
+          <div
+            style={{
+              maxWidth: '580px',
+              margin: '24px auto 0',
+              display: 'flex',
+              justifyContent: 'center',
+              gap: '12px',
+              flexWrap: 'wrap',
+            }}
+          >
+            {!bookingConfirmed ? (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => navigate('/booking')}
+              >
+                ← Back to Seat Selection
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleBookAnother}
+              >
+                🍿 Book Another Movie
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default SummaryPage;
+
+
+================================================================================
+FILE 6: src/pages/NotFound.jsx
+================================================================================
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+
+function NotFound() {
+  const navigate = useNavigate();
+
+  return (
+    <div className="notfound-container">
+      <div className="notfound-code">404</div>
+      <h2 className="notfound-title">Page Not Found</h2>
+      <p className="notfound-text">
+        Oops! The page you are looking for doesn't exist or has been moved.
+      </p>
+      <button
+        type="button"
+        className="btn-primary"
+        onClick={() => navigate('/')}
+      >
+        <span>Back to Home</span>
+      </button>
+    </div>
+  );
+}
+
+export default NotFound;
+
+
+================================================================================
+FILE 7: src/components/Header.jsx
+================================================================================
+import React from 'react';
+import { NavLink, Link } from 'react-router-dom';
+
+function Header() {
+  return (
+    <header className="navbar">
+      <div className="navbar-container">
+        {/* Left Side: Brand */}
+        <Link to="/" className="navbar-brand">
+          <span className="brand-icon">🎬</span>
+          <span className="brand-text">BookMyMovie</span>
+        </Link>
+
+        {/* Right Side: Navigation Links */}
+        <nav>
+          <ul className="navbar-links">
+            <li>
+              <NavLink
+                to="/"
+                end
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              >
+                Home
+              </NavLink>
+            </li>
+            <li>
+              <NavLink
+                to="/movies"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              >
+                Movies
+              </NavLink>
+            </li>
+            <li>
+              <NavLink
+                to="/booking"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              >
+                Booking
+              </NavLink>
+            </li>
+            <li>
+              <NavLink
+                to="/summary"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              >
+                Summary
+              </NavLink>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+  );
+}
+
+export default Header;
+
+
+================================================================================
+FILE 8: src/components/Footer.jsx
+================================================================================
+import React from 'react';
+
+function Footer() {
+  return (
+    <footer className="footer">
+      <p>© 2026 BookMyMovie • Unit 3: React Router Movie Booking System</p>
+    </footer>
+  );
+}
+
+export default Footer;
+
+
+================================================================================
+FILE 9: src/components/SearchBar.jsx
+================================================================================
+import React from 'react';
+
+function SearchBar({ searchQuery, onSearchChange, searchInputRef }) {
+  return (
+    <div className="search-wrapper">
+      <input
+        ref={searchInputRef}
+        type="text"
+        className="search-input-box"
+        placeholder="🔍  Search movie by title..."
+        value={searchQuery}
+        onChange={(e) => onSearchChange(e.target.value)}
+      />
+      {searchQuery && (
+        <button
+          className="btn-secondary"
+          onClick={() => onSearchChange('')}
+        >
+          Clear
+        </button>
+      )}
+    </div>
+  );
+}
+
+export default SearchBar;
+
+
+================================================================================
+FILE 10: src/components/MovieList.jsx
+================================================================================
+import React from 'react';
+import useBooking from '../hooks/useBooking';
+
+// Poster icons for the 4 lab movies
+const POSTER_ICONS = {
+  1: '🦁', // Leo
+  2: '🐐', // GOAT
+  3: '🐉', // Dragon
+  4: '⚡', // Coolie
+};
+
+function MovieList({ onSelectAndContinue }) {
+  const { filteredMovies, selectedMovie, handleSelectMovie } = useBooking();
+
+  const handleCardClick = (movie) => {
+    handleSelectMovie(movie);
+    if (onSelectAndContinue) {
+      onSelectAndContinue(movie);
+    }
+  };
+
+  return (
+    <div>
+      {filteredMovies.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
+          <p style={{ fontSize: '18px' }}>No movies found matching your search.</p>
+        </div>
+      ) : (
+        <div className="movies-grid">
+          {filteredMovies.map((movie) => {
+            const isSelected = selectedMovie?.id === movie.id;
+            return (
+              <div
+                key={movie.id}
+                onClick={() => handleCardClick(movie)}
+                className={`movie-card ${isSelected ? 'selected' : ''}`}
+              >
+                <div className="movie-poster-mock">
+                  {POSTER_ICONS[movie.id] || '🎬'}
+                </div>
+
+                <div className="movie-card-info">
+                  <h4>{movie.title}</h4>
+                  <div className="movie-meta">
+                    <span>{movie.genre}</span>
+                    <span>{movie.year}</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="movie-select-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCardClick(movie);
+                  }}
+                >
+                  {isSelected ? '✓ Selected' : 'Select Movie'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default MovieList;
+
+
+================================================================================
+FILE 11: src/components/TheatreList.jsx
+================================================================================
+import React from 'react';
+import useBooking from '../hooks/useBooking';
+
+const THEATRES = [
+  { id: 1, name: 'PVR Cinemas',     location: 'Phoenix Mall, Chennai', screen: 'IMAX Laser 4K' },
+  { id: 2, name: 'INOX Multiplex',  location: 'VR Mall, Coimbatore',   screen: 'Dolby Atmos 7.1' },
+  { id: 3, name: 'Sathyam Cinemas', location: 'Royapettah, Chennai',   screen: 'RGB Laser Cinema' },
+];
+
+function TheatreList() {
+  const { selectedTheatre, handleSelectTheatre } = useBooking();
+
+  return (
+    <div className="theatres-grid">
+      {THEATRES.map((theatre) => {
+        const isSelected = selectedTheatre?.id === theatre.id;
+        return (
+          <div
+            key={theatre.id}
+            onClick={() => handleSelectTheatre(theatre)}
+            className={`theatre-card ${isSelected ? 'selected' : ''}`}
+          >
+            <div className="theatre-name">{theatre.name}</div>
+            <div className="theatre-location">{theatre.location}</div>
+            <div style={{ fontSize: '11px', color: '#818cf8', marginTop: '6px' }}>
+              {theatre.screen}
+            </div>
+            {isSelected && (
+              <div style={{ fontSize: '12px', color: '#a78bfa', fontWeight: 'bold', marginTop: '8px' }}>
+                ✓ Selected
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export default TheatreList;
+
+
+================================================================================
+FILE 12: src/components/ShowTiming.jsx
+================================================================================
+import React from 'react';
+import useBooking from '../hooks/useBooking';
+
+const TIMINGS = [
+  { id: 1, time: '10:00 AM', label: 'Morning' },
+  { id: 2, time: '2:00 PM',  label: 'Matinee' },
+  { id: 3, time: '6:00 PM',  label: 'Evening' },
+  { id: 4, time: '9:00 PM',  label: 'Night' },
+];
+
+function ShowTiming() {
+  const { selectedTime, handleSelectTime } = useBooking();
+
+  return (
+    <div className="timings-grid">
+      {TIMINGS.map((timing) => {
+        const isSelected = selectedTime?.id === timing.id;
+        return (
+          <button
+            key={timing.id}
+            type="button"
+            onClick={() => handleSelectTime(timing)}
+            className={`timing-chip ${isSelected ? 'selected' : ''}`}
+          >
+            <span>{timing.time}</span>
+            <span style={{ fontSize: '11px', display: 'block', opacity: 0.8, marginTop: '2px' }}>
+              {timing.label}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export default ShowTiming;
+
+
+================================================================================
+FILE 13: src/components/SeatSelection.jsx
+================================================================================
+import React from 'react';
+import useBooking from '../hooks/useBooking';
+
+const ALL_SEATS = ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'A9', 'A10'];
+
+function SeatSelection() {
+  const { selectedSeats, handleToggleSeat, ticketPrice } = useBooking();
+
+  return (
+    <div>
+      {/* Cinema Screen Indicator */}
+      <div className="screen-container">
+        <div className="screen-curve"></div>
+        <span className="screen-text">ALL EYES THIS WAY • CINEMA SCREEN</span>
+      </div>
+
+      {/* Seats Grid */}
+      <div className="seats-grid">
+        {ALL_SEATS.map((seat) => {
+          const isSelected = selectedSeats.includes(seat);
+          return (
+            <button
+              key={seat}
+              type="button"
+              onClick={() => handleToggleSeat(seat)}
+              className={`seat-box ${isSelected ? 'selected' : ''}`}
+              title={`Seat ${seat} - Rs. ${ticketPrice}`}
+            >
+              {seat}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Legend */}
+      <div className="seats-legend">
+        <div className="legend-item">
+          <span className="legend-dot available"></span>
+          <span>Available</span>
+        </div>
+        <div className="legend-item">
+          <span className="legend-dot selected"></span>
+          <span>Selected</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default SeatSelection;
+
+
+================================================================================
+FILE 14: src/components/BookingSummary.jsx
+================================================================================
+import React from 'react';
+import useBooking from '../hooks/useBooking';
+
+function BookingSummary() {
+  const {
+    selectedMovie,
+    selectedTheatre,
+    selectedTime,
+    selectedSeats,
+    totalAmount,
+    bookingConfirmed,
+    handleConfirmBooking,
+  } = useBooking();
+
+  const isReady = selectedMovie && selectedTheatre && selectedTime && selectedSeats.length > 0;
+
+  return (
+    <div className="ticket-wrapper">
+      <div className="ticket-card">
+        {/* Ticket Header */}
+        <div className="ticket-header">
+          <h3>🎟️ CINEMA ADMISSION TICKET</h3>
+          <p>BookMyMovie Digital Ticket Pass</p>
+        </div>
+
+        {/* Ticket Body */}
+        <div className="ticket-body">
+          <div className="ticket-item">
+            <span className="ticket-label">Movie</span>
+            <span className="ticket-val" style={{ color: '#818cf8', fontSize: '16px', fontWeight: 700 }}>
+              {selectedMovie?.title || '—'}
+            </span>
+          </div>
+
+          <div className="ticket-item">
+            <span className="ticket-label">Theatre</span>
+            <span className="ticket-val">
+              {selectedTheatre ? `${selectedTheatre.name} (${selectedTheatre.location})` : '—'}
+            </span>
+          </div>
+
+          <div className="ticket-item">
+            <span className="ticket-label">Show Time</span>
+            <span className="ticket-val">{selectedTime?.time || '—'}</span>
+          </div>
+
+          <hr className="ticket-divider" />
+
+          <div className="ticket-item">
+            <span className="ticket-label">Seats</span>
+            <span className="ticket-val" style={{ color: '#818cf8', fontWeight: 700 }}>
+              {selectedSeats.length > 0 ? selectedSeats.join(', ') : '—'}
+            </span>
+          </div>
+
+          <div className="ticket-item">
+            <span className="ticket-label">Tickets</span>
+            <span className="ticket-val">{selectedSeats.length}</span>
+          </div>
+
+          <div className="ticket-item">
+            <span className="ticket-label">Ticket Rate</span>
+            <span className="ticket-val">Rs. 150 each</span>
+          </div>
+
+          <hr className="ticket-divider" />
+
+          <div className="ticket-item">
+            <span className="ticket-label" style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff' }}>
+              Total Amount
+            </span>
+            <span className="ticket-total-val">Rs. {totalAmount}</span>
+          </div>
+        </div>
+
+        {/* Ticket Footer Action */}
+        <div className="ticket-footer">
+          {!bookingConfirmed ? (
+            <button
+              type="button"
+              onClick={handleConfirmBooking}
+              disabled={!isReady}
+              className="btn-primary"
+              style={{ width: '100%' }}
+            >
+              Confirm Booking
+            </button>
+          ) : (
+            <div className="confirmed-box">
+              <div className="confirmed-title">✓ Booking Confirmed Successfully!</div>
+              <p>Your tickets have been reserved.</p>
+              <p style={{ marginTop: '6px', fontWeight: 600 }}>Enjoy the show! 🍿</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default BookingSummary;
+
+
+================================================================================
+FILE 15: src/context/BookingContext.jsx
+================================================================================
+import React, { createContext, useState, useMemo, useCallback } from 'react';
+
+// Create Context
+const BookingContext = createContext();
+
+// Movie data as per Lab Manual (Experiment 1, 2, 3)
+const MOVIES = [
+  { id: 1, title: 'Leo',    genre: 'Action',  year: 2023 },
+  { id: 2, title: 'GOAT',   genre: 'Action',  year: 2024 },
+  { id: 3, title: 'Dragon', genre: 'Fantasy', year: 2025 },
+  { id: 4, title: 'Coolie', genre: 'Action',  year: 2025 },
+];
+
+const TICKET_PRICE = 150;
+
+function BookingProvider({ children }) {
+  const [searchQuery, setSearchQuery]           = useState('');
+  const [selectedMovie, setSelectedMovie]       = useState(null);
+  const [selectedTheatre, setSelectedTheatre]   = useState(null);
+  const [selectedTime, setSelectedTime]         = useState(null);
+  const [selectedSeats, setSelectedSeats]       = useState([]);
+  const [bookingConfirmed, setBookingConfirmed] = useState(false);
+
+  // Filter movies based on search query
+  const filteredMovies = useMemo(() => {
+    if (!searchQuery.trim()) return MOVIES;
+    return MOVIES.filter((movie) =>
+      movie.title.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [searchQuery]);
+
+  // Total amount calculation
+  const totalAmount = useMemo(() => {
+    return selectedSeats.length * TICKET_PRICE;
+  }, [selectedSeats]);
+
+  // Select movie handler
+  const handleSelectMovie = useCallback((movie) => {
+    setSelectedMovie(movie);
+    setSelectedTheatre(null);
+    setSelectedTime(null);
+    setSelectedSeats([]);
+    setBookingConfirmed(false);
+  }, []);
+
+  // Select theatre handler
+  const handleSelectTheatre = useCallback((theatre) => {
+    setSelectedTheatre(theatre);
+    setSelectedTime(null);
+    setSelectedSeats([]);
+    setBookingConfirmed(false);
+  }, []);
+
+  // Select show time handler
+  const handleSelectTime = useCallback((timing) => {
+    setSelectedTime(timing);
+    setSelectedSeats([]);
+    setBookingConfirmed(false);
+  }, []);
+
+  // Toggle seat selection
+  const handleToggleSeat = useCallback((seat) => {
+    setSelectedSeats((prevSeats) => {
+      if (prevSeats.includes(seat)) {
+        return prevSeats.filter((s) => s !== seat);
+      } else {
+        return [...prevSeats, seat];
+      }
+    });
+    setBookingConfirmed(false);
+  }, []);
+
+  // Search input handler
+  const handleSearchChange = useCallback((value) => {
+    setSearchQuery(value);
+  }, []);
+
+  // Confirm booking handler
+  const handleConfirmBooking = useCallback(() => {
+    setBookingConfirmed(true);
+  }, []);
+
+  // Reset booking handler
+  const handleResetBooking = useCallback(() => {
+    setSelectedMovie(null);
+    setSelectedTheatre(null);
+    setSelectedTime(null);
+    setSelectedSeats([]);
+    setBookingConfirmed(false);
+  }, []);
+
+  const contextValue = {
+    // State
+    searchQuery,
+    selectedMovie,
+    selectedTheatre,
+    selectedTime,
+    selectedSeats,
+    bookingConfirmed,
+    filteredMovies,
+    totalAmount,
+    ticketPrice: TICKET_PRICE,
+    // Handlers
+    handleSearchChange,
+    handleSelectMovie,
+    handleSelectTheatre,
+    handleSelectTime,
+    handleToggleSeat,
+    handleConfirmBooking,
+    handleResetBooking,
+  };
+
+  return (
+    <BookingContext.Provider value={contextValue}>
+      {children}
+    </BookingContext.Provider>
+  );
+}
+
+export { BookingContext, BookingProvider };
+
+
+================================================================================
+FILE 16: src/hooks/useBooking.js
+================================================================================
+import { useContext } from 'react';
+import { BookingContext } from '../context/BookingContext';
+
+// Custom Hook - useBooking
+// Any component can call this hook to get booking data and functions
+// Instead of writing useContext(BookingContext) in every component,
+// we just call useBooking() - that's the benefit of a custom hook!
+
+function useBooking() {
+  const context = useContext(BookingContext);
+  return context;
+}
+
+export default useBooking;
+
+
+================================================================================
+FILE 17: src/App.css
+================================================================================
+/* App.css - Movie Ticket Booking (Experiment 3) */
+
+.app-wrapper {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.main-content {
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px 16px 40px;
+  flex: 1;
+}
+
+/* 1. Header / Navbar */
+.navbar {
+  background-color: #1e293b;
+  border-bottom: 1px solid #334155;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.navbar-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 14px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.navbar-brand {
+  font-size: 18px;
+  font-weight: bold;
+  color: #ffffff;
+}
+
+.navbar-links {
+  display: flex;
+  gap: 8px;
+  list-style: none;
+}
+
+.nav-link {
+  padding: 8px 14px;
+  border-radius: 6px;
+  color: #94a3b8;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.nav-link:hover {
+  color: #ffffff;
+  background-color: #334155;
+}
+
+.nav-link.active {
+  color: #ffffff;
+  background-color: #6366f1;
+}
+
+/* 2. Buttons */
+.btn-primary {
+  padding: 10px 20px;
+  background-color: #6366f1;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #4f46e5;
+}
+
+.btn-primary:disabled {
+  background-color: #475569;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.btn-secondary {
+  padding: 8px 16px;
+  background-color: #334155;
+  color: #e2e8f0;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  background-color: #475569;
+}
+
+/* 3. Page Headers */
+.page-header {
+  margin-bottom: 20px;
+}
+
+.page-title {
+  font-size: 22px;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.page-subtitle {
+  font-size: 14px;
+  color: #94a3b8;
+}
+
+/* 4. Home Page */
+.hero-section {
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 36px 20px;
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.hero-pill {
+  display: inline-block;
+  background-color: #312e81;
+  color: #a5b4fc;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+  margin-bottom: 14px;
+}
+
+.hero-title {
+  font-size: 28px;
+  color: #ffffff;
+  margin-bottom: 10px;
+}
+
+.hero-title span {
+  color: #818cf8;
+}
+
+.hero-desc {
+  max-width: 540px;
+  margin: 0 auto 20px;
+  font-size: 15px;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.feature-card {
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+}
+
+.feature-icon {
+  font-size: 28px;
+  margin-bottom: 10px;
+}
+
+.feature-title {
+  font-size: 16px;
+  color: #ffffff;
+  margin-bottom: 6px;
+}
+
+.feature-text {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+/* 5. Search Bar */
+.search-wrapper {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.search-input-box {
+  flex: 1;
+  max-width: 360px;
+  padding: 10px 14px;
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 14px;
+}
+
+.search-input-box:focus {
+  outline: none;
+  border-color: #6366f1;
+}
+
+/* 6. Movies Grid */
+.movies-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.movie-card {
+  background-color: #1e293b;
+  border: 2px solid #334155;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.movie-card:hover {
+  border-color: #6366f1;
+}
+
+.movie-card.selected {
+  border-color: #818cf8;
+  background-color: #27273f;
+}
+
+.movie-poster-box {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  margin-bottom: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.movie-poster-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.movie-poster-mock {
+  font-size: 36px;
+  margin-bottom: 10px;
+}
+
+.movie-card-info h4 {
+  font-size: 16px;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.movie-meta {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-bottom: 12px;
+}
+
+.movie-select-btn {
+  width: 100%;
+  padding: 8px;
+  background-color: #334155;
+  border: 1px solid #475569;
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: 12px;
+}
+
+.movie-card.selected .movie-select-btn {
+  background-color: #6366f1;
+  border-color: #6366f1;
+}
+
+.continue-bar {
+  margin-top: 20px;
+  padding: 16px 20px;
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.continue-bar-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 7. Booking Page */
+.booking-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.booking-card {
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 18px 20px;
+}
+
+.booking-card-header {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 14px;
+  display: flex;
+  gap: 8px;
+}
+
+.selected-movie-badge {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #262b40;
+  padding: 12px 16px;
+  border-radius: 6px;
+}
+
+/* Theatres */
+.theatres-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.theatre-card {
+  background-color: #0f172a;
+  border: 1.5px solid #334155;
+  border-radius: 6px;
+  padding: 12px;
+  cursor: pointer;
+}
+
+.theatre-card:hover {
+  border-color: #6366f1;
+}
+
+.theatre-card.selected {
+  border-color: #818cf8;
+  background-color: #27273f;
+}
+
+.theatre-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.theatre-location {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+/* Timings */
+.timings-grid {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.timing-chip {
+  padding: 10px 18px;
+  background-color: #0f172a;
+  border: 1.5px solid #334155;
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.timing-chip:hover {
+  border-color: #6366f1;
+}
+
+.timing-chip.selected {
+  background-color: #6366f1;
+  border-color: #6366f1;
+  color: #ffffff;
+}
+
+/* Seats */
+.screen-container {
+  text-align: center;
+  margin-bottom: 18px;
+}
+
+.screen-curve {
+  height: 4px;
+  width: 70%;
+  margin: 0 auto 6px;
+  background-color: #6366f1;
+  border-radius: 4px;
+}
+
+.screen-text {
+  font-size: 11px;
+  color: #64748b;
+  letter-spacing: 2px;
+}
+
+.seats-grid {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  max-width: 600px;
+  margin: 0 auto 20px;
+}
+
+.seat-box {
+  width: 48px;
+  height: 44px;
+  background-color: #0f172a;
+  border: 1.5px solid #334155;
+  border-radius: 6px;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.seat-box:hover {
+  border-color: #6366f1;
+  color: #ffffff;
+}
+
+.seat-box.selected {
+  background-color: #6366f1;
+  border-color: #6366f1;
+  color: #ffffff;
+}
+
+.seats-legend {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.legend-dot.available {
+  background-color: #0f172a;
+  border: 1px solid #334155;
+}
+
+.legend-dot.selected {
+  background-color: #6366f1;
+}
+
+/* Price Details */
+.price-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.price-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  color: #94a3b8;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #334155;
+}
+
+.price-row.total-row {
+  font-size: 16px;
+  font-weight: bold;
+  color: #ffffff;
+  border-bottom: none;
+}
+
+.total-amount {
+  color: #818cf8;
+}
+
+/* 8. Summary Page (Ticket) */
+.ticket-wrapper {
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.ticket-card {
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.ticket-header {
+  background-color: #312e81;
+  padding: 18px;
+  text-align: center;
+  border-bottom: 1px dashed #475569;
+}
+
+.ticket-header h3 {
+  font-size: 17px;
+  color: #ffffff;
+}
+
+.ticket-header p {
+  font-size: 12px;
+  color: #c7d2fe;
+  margin-top: 2px;
+}
+
+.ticket-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ticket-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+.ticket-label {
+  color: #94a3b8;
+}
+
+.ticket-val {
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.ticket-divider {
+  border: none;
+  border-top: 1px dashed #334155;
+  margin: 4px 0;
+}
+
+.ticket-total-val {
+  font-size: 18px;
+  font-weight: bold;
+  color: #818cf8;
+}
+
+.ticket-footer {
+  padding: 0 20px 20px;
+}
+
+.confirmed-box {
+  background-color: #064e3b;
+  border: 1px solid #059669;
+  border-radius: 6px;
+  padding: 14px;
+  text-align: center;
+  color: #a7f3d0;
+  margin-top: 10px;
+}
+
+.confirmed-title {
+  font-size: 15px;
+  font-weight: bold;
+  color: #34d399;
+  margin-bottom: 4px;
+}
+
+/* 9. 404 Page */
+.notfound-container {
+  text-align: center;
+  padding: 60px 16px;
+}
+
+.notfound-code {
+  font-size: 64px;
+  font-weight: bold;
+  color: #818cf8;
+  margin-bottom: 8px;
+}
+
+.notfound-title {
+  font-size: 20px;
+  color: #ffffff;
+  margin-bottom: 8px;
+}
+
+.notfound-text {
+  font-size: 14px;
+  color: #94a3b8;
+  margin-bottom: 20px;
+}
+
+/* 10. Footer */
+.footer {
+  background-color: #0f172a;
+  border-top: 1px solid #334155;
+  text-align: center;
+  padding: 16px;
+  font-size: 13px;
+  color: #64748b;
+  margin-top: auto;
+}
+
+
+================================================================================
+FILE 18: src/index.css
+================================================================================
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #0f172a;
+  color: #e2e8f0;
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+

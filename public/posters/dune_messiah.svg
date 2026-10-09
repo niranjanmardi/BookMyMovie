@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 450" width="300" height="450">
+    <defs>
+      <linearGradient id="bg7" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#78350f"/>
+        <stop offset="50%" stop-color="#451a03"/>
+        <stop offset="100%" stop-color="#1c0802"/>
+      </linearGradient>
+      <linearGradient id="sand" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#fde68a"/>
+        <stop offset="100%" stop-color="#d97706"/>
+      </linearGradient>
+    </defs>
+    <rect width="300" height="450" fill="url(#bg7)"/>
+    <text x="150" y="160" text-anchor="middle" font-size="56">🪐</text>
+    <text x="150" y="210" text-anchor="middle" fill="#fde68a" font-size="11" font-family="sans-serif" letter-spacing="5">DENIS VILLENEUVE FILM</text>
+    <text x="150" y="255" text-anchor="middle" fill="url(#sand)" font-size="34" font-weight="900" font-family="Georgia, serif" letter-spacing="6">D U N E</text>
+    <text x="150" y="285" text-anchor="middle" fill="#ffffff" font-size="14" font-weight="bold" font-family="sans-serif" letter-spacing="4">PART THREE • MESSIAH</text>
+    <rect x="50" y="310" width="200" height="1" fill="#f59e0b" opacity="0.4"/>
+    <text x="150" y="340" text-anchor="middle" fill="#fed7aa" font-size="12" font-family="sans-serif">TIMOTHÉE CHALAMET • ZENDAYA</text>
+    <rect x="75" y="380" width="150" height="30" rx="15" fill="#b45309"/>
+    <text x="150" y="400" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="bold" font-family="sans-serif" letter-spacing="1">DECEMBER 2026</text>
+  </svg>

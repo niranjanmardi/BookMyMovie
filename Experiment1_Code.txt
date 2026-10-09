@@ -1,0 +1,608 @@
+﻿================================================================================
+   UNIT 3 - EXPERIMENT 1
+   Movie Ticket Booking Web Application - BookMyMovie
+   Technology: React + Vite + JavaScript JSX
+   React Hooks Used: useState, useMemo, useRef, useCallback
+================================================================================
+
+COMPONENTS:
+  1. App.jsx
+  2. Header.jsx
+  3. Home.jsx
+  4. SearchBar.jsx
+  5. MovieList.jsx
+  6. TheatreList.jsx
+  7. ShowTiming.jsx
+  8. SeatSelection.jsx
+  9. BookingSummary.jsx
+ 10. Footer.jsx
+
+================================================================================
+FILE 1: src/App.jsx
+================================================================================
+
+import React, { useState, useMemo, useRef, useCallback } from 'react';
+
+import Header from './components/Header';
+import Home from './components/Home';
+import SearchBar from './components/SearchBar';
+import MovieList, { MOVIES } from './components/MovieList';
+import TheatreList from './components/TheatreList';
+import ShowTiming from './components/ShowTiming';
+import SeatSelection from './components/SeatSelection';
+import BookingSummary from './components/BookingSummary';
+import Footer from './components/Footer';
+
+import './App.css';
+
+const TICKET_PRICE = 150;
+
+function App() {
+
+  // useState - storing all the data
+  const [searchQuery, setSearchQuery]           = useState('');
+  const [selectedMovie, setSelectedMovie]       = useState(null);
+  const [selectedTheatre, setSelectedTheatre]   = useState(null);
+  const [selectedTime, setSelectedTime]         = useState(null);
+  const [selectedSeats, setSelectedSeats]       = useState([]);
+  const [bookingConfirmed, setBookingConfirmed] = useState(false);
+
+  // useRef - to access the search input directly
+  const searchInputRef = useRef(null);
+
+  // useMemo - filter movies based on search (only re-runs when searchQuery changes)
+  const filteredMovies = useMemo(() => {
+    if (searchQuery === '') return MOVIES;
+    return MOVIES.filter((movie) =>
+      movie.title.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [searchQuery]);
+
+  // useMemo - calculate total price (only re-runs when selectedSeats changes)
+  const totalAmount = useMemo(() => {
+    return selectedSeats.length * TICKET_PRICE;
+  }, [selectedSeats]);
+
+  // useCallback - stable function for selecting a movie
+  const handleSelectMovie = useCallback((movie) => {
+    setSelectedMovie(movie);
+    setSelectedTheatre(null);
+    setSelectedTime(null);
+    setSelectedSeats([]);
+    setBookingConfirmed(false);
+  }, []);
+
+  // useCallback - stable function for selecting theatre
+  const handleSelectTheatre = useCallback((theatre) => {
+    setSelectedTheatre(theatre);
+    setSelectedTime(null);
+    setSelectedSeats([]);
+    setBookingConfirmed(false);
+  }, []);
+
+  // useCallback - stable function for selecting time
+  const handleSelectTime = useCallback((timing) => {
+    setSelectedTime(timing);
+    setSelectedSeats([]);
+    setBookingConfirmed(false);
+  }, []);
+
+  // useCallback - stable function for toggling a seat (select/deselect)
+  const handleToggleSeat = useCallback((seat) => {
+    setSelectedSeats((prevSeats) => {
+      if (prevSeats.includes(seat)) {
+        return prevSeats.filter((s) => s !== seat);
+      } else {
+        return [...prevSeats, seat];
+      }
+    });
+    setBookingConfirmed(false);
+  }, []);
+
+  // useCallback - stable function for search input change
+  const handleSearchChange = useCallback((value) => {
+    setSearchQuery(value);
+  }, []);
+
+  // Confirm booking
+  const handleConfirmBooking = () => {
+    setBookingConfirmed(true);
+  };
+
+  return (
+    <div>
+      <Header />
+      <div style={{ padding: '20px' }}>
+        <Home />
+
+        <SearchBar
+          searchQuery={searchQuery}
+          onSearchChange={handleSearchChange}
+          searchInputRef={searchInputRef}
+        />
+
+        <MovieList
+          filteredMovies={filteredMovies}
+          selectedMovie={selectedMovie}
+          onSelectMovie={handleSelectMovie}
+        />
+
+        <TheatreList
+          selectedMovie={selectedMovie}
+          selectedTheatre={selectedTheatre}
+          onSelectTheatre={handleSelectTheatre}
+        />
+
+        <ShowTiming
+          selectedTheatre={selectedTheatre}
+          selectedTime={selectedTime}
+          onSelectTime={handleSelectTime}
+        />
+
+        <SeatSelection
+          selectedTime={selectedTime}
+          selectedSeats={selectedSeats}
+          onToggleSeat={handleToggleSeat}
+        />
+
+        <BookingSummary
+          selectedMovie={selectedMovie}
+          selectedTheatre={selectedTheatre}
+          selectedTime={selectedTime}
+          selectedSeats={selectedSeats}
+          totalAmount={totalAmount}
+          onConfirmBooking={handleConfirmBooking}
+          bookingConfirmed={bookingConfirmed}
+        />
+      </div>
+      <Footer />
+    </div>
+  );
+}
+
+export default App;
+
+
+================================================================================
+FILE 2: src/components/Header.jsx
+================================================================================
+
+import React from 'react';
+
+function Header() {
+  return (
+    <div style={{ backgroundColor: '#e50914', padding: '15px', marginBottom: '20px' }}>
+      <h1 style={{ color: 'white', margin: 0 }}>BookMyMovie</h1>
+      <p style={{ color: 'white', margin: 0, fontSize: '14px' }}>Book your movie tickets online</p>
+    </div>
+  );
+}
+
+export default Header;
+
+
+================================================================================
+FILE 3: src/components/Home.jsx
+================================================================================
+
+import React from 'react';
+
+function Home() {
+  return (
+    <div style={{ textAlign: 'center', padding: '20px', backgroundColor: '#fff', marginBottom: '20px', border: '1px solid #ddd' }}>
+      <h2>Welcome to BookMyMovie!</h2>
+      <p>Select a movie, choose your theatre, pick a time and book your seats.</p>
+    </div>
+  );
+}
+
+export default Home;
+
+
+================================================================================
+FILE 4: src/components/SearchBar.jsx
+================================================================================
+
+import React from 'react';
+
+// searchInputRef is a useRef passed from App.jsx
+function SearchBar({ searchQuery, onSearchChange, searchInputRef }) {
+  return (
+    <div style={{ marginBottom: '20px' }}>
+      <input
+        ref={searchInputRef}
+        type="text"
+        placeholder="Search movies..."
+        value={searchQuery}
+        onChange={(e) => onSearchChange(e.target.value)}
+        style={{ padding: '8px', width: '300px', fontSize: '16px', border: '1px solid #ccc' }}
+      />
+      {searchQuery && (
+        <button onClick={() => onSearchChange('')} style={{ marginLeft: '10px', padding: '8px' }}>
+          Clear
+        </button>
+      )}
+    </div>
+  );
+}
+
+export default SearchBar;
+
+
+================================================================================
+FILE 5: src/components/MovieList.jsx
+================================================================================
+
+import React from 'react';
+
+const MOVIES = [
+  { id: 1, title: 'Leo',    genre: 'Action',  year: 2023 },
+  { id: 2, title: 'GOAT',   genre: 'Action',  year: 2024 },
+  { id: 3, title: 'Dragon', genre: 'Fantasy', year: 2025 },
+  { id: 4, title: 'Coolie', genre: 'Action',  year: 2025 },
+];
+
+function MovieList({ filteredMovies, selectedMovie, onSelectMovie }) {
+
+  const moviesToShow = filteredMovies !== undefined ? filteredMovies : MOVIES;
+
+  return (
+    <div style={{ marginBottom: '20px' }}>
+      <h3>Select a Movie</h3>
+
+      {moviesToShow.length === 0 && <p>No movies found.</p>}
+
+      <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+        {moviesToShow.map((movie) => (
+          <div
+            key={movie.id}
+            onClick={() => onSelectMovie(movie)}
+            style={{
+              border: selectedMovie?.id === movie.id ? '3px solid #e50914' : '1px solid #ccc',
+              padding: '15px',
+              width: '150px',
+              backgroundColor: selectedMovie?.id === movie.id ? '#ffe0e0' : '#fff',
+              cursor: 'pointer',
+              textAlign: 'center',
+            }}
+          >
+            <h4 style={{ margin: '0 0 5px 0' }}>{movie.title}</h4>
+            <p style={{ margin: 0, fontSize: '13px', color: '#555' }}>{movie.genre}</p>
+            <p style={{ margin: 0, fontSize: '13px', color: '#555' }}>{movie.year}</p>
+            {selectedMovie?.id === movie.id && (
+              <p style={{ color: '#e50914', fontWeight: 'bold', margin: '5px 0 0' }}>Selected</p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export { MOVIES };
+export default MovieList;
+
+
+================================================================================
+FILE 6: src/components/TheatreList.jsx
+================================================================================
+
+import React from 'react';
+
+const THEATRES = [
+  { id: 1, name: 'PVR Cinemas',     location: 'Phoenix Mall, Chennai' },
+  { id: 2, name: 'INOX Multiplex',  location: 'VR Mall, Coimbatore' },
+  { id: 3, name: 'Sathyam Cinemas', location: 'Royapettah, Chennai' },
+];
+
+function TheatreList({ selectedMovie, selectedTheatre, onSelectTheatre }) {
+
+  if (!selectedMovie) return null;
+
+  return (
+    <div style={{ marginBottom: '20px' }}>
+      <h3>Select Theatre</h3>
+
+      {THEATRES.map((theatre) => (
+        <div
+          key={theatre.id}
+          onClick={() => onSelectTheatre(theatre)}
+          style={{
+            border: selectedTheatre?.id === theatre.id ? '2px solid #e50914' : '1px solid #ccc',
+            padding: '10px',
+            marginBottom: '8px',
+            backgroundColor: selectedTheatre?.id === theatre.id ? '#ffe0e0' : '#fff',
+            cursor: 'pointer',
+          }}
+        >
+          <strong>{theatre.name}</strong> -- {theatre.location}
+          {selectedTheatre?.id === theatre.id && (
+            <span style={{ color: '#e50914', marginLeft: '10px' }}>Selected</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default TheatreList;
+
+
+================================================================================
+FILE 7: src/components/ShowTiming.jsx
+================================================================================
+
+import React from 'react';
+
+const TIMINGS = [
+  { id: 1, time: '10:00 AM' },
+  { id: 2, time: '2:00 PM' },
+  { id: 3, time: '6:00 PM' },
+  { id: 4, time: '9:00 PM' },
+];
+
+function ShowTiming({ selectedTheatre, selectedTime, onSelectTime }) {
+
+  if (!selectedTheatre) return null;
+
+  return (
+    <div style={{ marginBottom: '20px' }}>
+      <h3>Select Show Time</h3>
+
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        {TIMINGS.map((timing) => (
+          <button
+            key={timing.id}
+            onClick={() => onSelectTime(timing)}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: selectedTime?.id === timing.id ? '#e50914' : '#fff',
+              color: selectedTime?.id === timing.id ? '#fff' : '#333',
+              border: '1px solid #ccc',
+              cursor: 'pointer',
+              fontSize: '15px',
+            }}
+          >
+            {timing.time}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default ShowTiming;
+
+
+================================================================================
+FILE 8: src/components/SeatSelection.jsx
+================================================================================
+
+import React from 'react';
+
+const ALL_SEATS = ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'A9', 'A10'];
+
+function SeatSelection({ selectedTime, selectedSeats, onToggleSeat }) {
+
+  if (!selectedTime) return null;
+
+  return (
+    <div style={{ marginBottom: '20px' }}>
+      <h3>Select Seats (A1 to A10)</h3>
+      <p style={{ fontSize: '13px', color: '#555' }}>
+        Red = Selected   |   White = Available
+      </p>
+
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        {ALL_SEATS.map((seat) => {
+          const isSelected = selectedSeats.includes(seat);
+          return (
+            <button
+              key={seat}
+              onClick={() => onToggleSeat(seat)}
+              style={{
+                width: '55px',
+                height: '55px',
+                backgroundColor: isSelected ? '#e50914' : '#fff',
+                color: isSelected ? '#fff' : '#333',
+                border: '1px solid #ccc',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '14px',
+              }}
+            >
+              {seat}
+            </button>
+          );
+        })}
+      </div>
+
+      {selectedSeats.length > 0 && (
+        <p style={{ marginTop: '10px' }}>
+          <strong>Selected:</strong> {selectedSeats.join(', ')}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export default SeatSelection;
+
+
+================================================================================
+FILE 9: src/components/BookingSummary.jsx
+================================================================================
+
+import React from 'react';
+
+const TICKET_PRICE = 150;
+
+function BookingSummary({
+  selectedMovie,
+  selectedTheatre,
+  selectedTime,
+  selectedSeats,
+  totalAmount,
+  onConfirmBooking,
+  bookingConfirmed,
+}) {
+
+  if (!selectedMovie) return null;
+
+  const isReady = selectedMovie && selectedTheatre && selectedTime && selectedSeats.length > 0;
+
+  return (
+    <div style={{ border: '1px solid #ccc', padding: '20px', backgroundColor: '#fff', marginBottom: '20px' }}>
+      <h3>Booking Summary</h3>
+
+      <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+        <tbody>
+          <tr>
+            <td style={{ padding: '8px', borderBottom: '1px solid #eee', fontWeight: 'bold' }}>Movie</td>
+            <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{selectedMovie?.title || '--'}</td>
+          </tr>
+          <tr>
+            <td style={{ padding: '8px', borderBottom: '1px solid #eee', fontWeight: 'bold' }}>Theatre</td>
+            <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{selectedTheatre?.name || '--'}</td>
+          </tr>
+          <tr>
+            <td style={{ padding: '8px', borderBottom: '1px solid #eee', fontWeight: 'bold' }}>Show Time</td>
+            <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{selectedTime?.time || '--'}</td>
+          </tr>
+          <tr>
+            <td style={{ padding: '8px', borderBottom: '1px solid #eee', fontWeight: 'bold' }}>Seats</td>
+            <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>
+              {selectedSeats.length > 0 ? selectedSeats.join(', ') : '--'}
+            </td>
+          </tr>
+          <tr>
+            <td style={{ padding: '8px', borderBottom: '1px solid #eee', fontWeight: 'bold' }}>No. of Tickets</td>
+            <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{selectedSeats.length}</td>
+          </tr>
+          <tr>
+            <td style={{ padding: '8px', fontWeight: 'bold', fontSize: '18px' }}>Total Amount</td>
+            <td style={{ padding: '8px', color: '#e50914', fontWeight: 'bold', fontSize: '18px' }}>
+              Rs. {totalAmount}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <button
+        onClick={onConfirmBooking}
+        disabled={!isReady}
+        style={{
+          marginTop: '15px',
+          padding: '12px 30px',
+          backgroundColor: isReady ? '#e50914' : '#ccc',
+          color: '#fff',
+          border: 'none',
+          fontSize: '16px',
+          cursor: isReady ? 'pointer' : 'not-allowed',
+        }}
+      >
+        Confirm Booking
+      </button>
+
+      {!isReady && (
+        <p style={{ color: '#888', fontSize: '13px', marginTop: '8px' }}>
+          Please select movie, theatre, show time and at least one seat.
+        </p>
+      )}
+
+      {bookingConfirmed && (
+        <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#d4edda', border: '1px solid #28a745' }}>
+          <h4 style={{ color: '#28a745', margin: '0 0 8px 0' }}>Booking Confirmed!</h4>
+          <p style={{ margin: 0 }}>
+            <strong>{selectedMovie.title}</strong> at <strong>{selectedTheatre?.name}</strong> -- {selectedTime?.time}
+          </p>
+          <p style={{ margin: 0 }}>
+            Seats: <strong>{selectedSeats.join(', ')}</strong> | Total: <strong>Rs. {totalAmount}</strong>
+          </p>
+          <p style={{ margin: '8px 0 0', color: '#28a745' }}>Enjoy the movie!</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default BookingSummary;
+
+
+================================================================================
+FILE 10: src/components/Footer.jsx
+================================================================================
+
+import React from 'react';
+
+function Footer() {
+  return (
+    <div style={{ backgroundColor: '#333', color: '#fff', textAlign: 'center', padding: '15px', marginTop: '30px' }}>
+      <p style={{ margin: 0 }}>2026 BookMyMovie | Unit 3 - Experiment 1</p>
+    </div>
+  );
+}
+
+export default Footer;
+
+
+================================================================================
+FILE 11: src/App.css
+================================================================================
+
+.app {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 10px;
+}
+
+
+================================================================================
+FILE 12: src/index.css
+================================================================================
+
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #f0f0f0;
+}
+
+
+================================================================================
+REACT HOOKS SUMMARY
+================================================================================
+
+Hook        | Where Used | Purpose
+------------|------------|------------------------------------------------
+useState    | App.jsx    | Store movie, theatre, time, seats, search, confirm
+useMemo     | App.jsx    | Filter movies by search + calculate total price
+useRef      | App.jsx    | Reference to the search input element
+useCallback | App.jsx    | Stable handler functions (select movie, seat, etc.)
+
+
+================================================================================
+HOW TO RUN
+================================================================================
+
+Step 1:  cd BookMyMovie
+Step 2:  npm install
+Step 3:  npm run dev
+Step 4:  Open browser -> http://localhost:5173/
+
+
+================================================================================
+BOOKING FLOW
+================================================================================
+
+1. Search for a movie  (or scroll to see all 4 movies)
+2. Click a movie card  -> Theatre list appears below
+3. Click a theatre     -> Show timings appear below
+4. Click a time        -> Seat grid (A1-A10) appears below
+5. Click seats         -> Booking summary updates (total = seats x Rs.150)
+6. Click Confirm Booking -> Green confirmation message appears
+
+
+================================================================================
+END OF FILE
+================================================================================

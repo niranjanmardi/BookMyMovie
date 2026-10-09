@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 450" width="300" height="450">
+    <defs>
+      <linearGradient id="bg1" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#450a0a"/>
+        <stop offset="50%" stop-color="#1c0404"/>
+        <stop offset="100%" stop-color="#0a0101"/>
+      </linearGradient>
+      <linearGradient id="gold1" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#fbbf24"/>
+        <stop offset="50%" stop-color="#f59e0b"/>
+        <stop offset="100%" stop-color="#d97706"/>
+      </linearGradient>
+    </defs>
+    <rect width="300" height="450" fill="url(#bg1)"/>
+    <circle cx="150" cy="170" r="90" fill="#dc2626" opacity="0.15"/>
+    <text x="150" y="170" text-anchor="middle" font-size="64">🔥</text>
+    <text x="150" y="240" text-anchor="middle" fill="#ffffff" font-size="24" font-weight="900" font-family="Impact, Arial Black, sans-serif" letter-spacing="2">THALAPATHY 69</text>
+    <text x="150" y="268" text-anchor="middle" fill="#f87171" font-size="11" font-weight="700" font-family="sans-serif" letter-spacing="3">THE FINAL POLITICAL REVOLUTION</text>
+    <rect x="35" y="295" width="230" height="1" fill="#f87171" opacity="0.4"/>
+    <text x="150" y="325" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="bold" font-family="sans-serif">DIRECTED BY H. VINOTH</text>
+    <text x="150" y="348" text-anchor="middle" fill="#fbbf24" font-size="11" font-family="sans-serif">ANIRUDH MUSICAL • KVN PRODUCTIONS</text>
+    <rect x="75" y="380" width="150" height="30" rx="15" fill="#dc2626"/>
+    <text x="150" y="400" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="bold" font-family="sans-serif" letter-spacing="1">OCTOBER 2026</text>
+  </svg>

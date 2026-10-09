@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 450" width="300" height="450">
+    <defs>
+      <linearGradient id="bg5" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#831843"/>
+        <stop offset="50%" stop-color="#500724"/>
+        <stop offset="100%" stop-color="#1f030f"/>
+      </linearGradient>
+      <linearGradient id="fire" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#fde047"/>
+        <stop offset="50%" stop-color="#f97316"/>
+        <stop offset="100%" stop-color="#ef4444"/>
+      </linearGradient>
+    </defs>
+    <rect width="300" height="450" fill="url(#bg5)"/>
+    <text x="150" y="160" text-anchor="middle" font-size="56">🥊</text>
+    <text x="150" y="210" text-anchor="middle" fill="#fbcfe8" font-size="11" font-family="sans-serif" letter-spacing="3">CAPCOM LIVE ACTION BLOCKBUSTER</text>
+    <text x="150" y="255" text-anchor="middle" fill="url(#fire)" font-size="26" font-weight="900" font-family="Impact, sans-serif" letter-spacing="2">STREET FIGHTER</text>
+    <text x="150" y="285" text-anchor="middle" fill="#ffffff" font-size="12" font-family="sans-serif" letter-spacing="2">ROUND ONE • FIGHT</text>
+    <rect x="50" y="310" width="200" height="1" fill="#f43f5e" opacity="0.4"/>
+    <text x="150" y="340" text-anchor="middle" fill="#fbcfe8" font-size="12" font-family="sans-serif">SONY &amp; LEGENDARY PICTURES</text>
+    <rect x="75" y="380" width="150" height="30" rx="15" fill="#e11d48"/>
+    <text x="150" y="400" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="bold" font-family="sans-serif" letter-spacing="1">OCT 16, 2026</text>
+  </svg>

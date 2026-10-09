@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 450" width="300" height="450">
+    <defs>
+      <linearGradient id="bg2" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#18181b"/>
+        <stop offset="60%" stop-color="#09090b"/>
+        <stop offset="100%" stop-color="#000000"/>
+      </linearGradient>
+      <linearGradient id="gold2" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#fde047"/>
+        <stop offset="100%" stop-color="#ca8a04"/>
+      </linearGradient>
+    </defs>
+    <rect width="300" height="450" fill="url(#bg2)"/>
+    <circle cx="150" cy="150" r="75" stroke="#eab308" stroke-width="2" fill="none" opacity="0.3"/>
+    <text x="150" y="160" text-anchor="middle" font-size="64">🕶️</text>
+    <text x="150" y="210" text-anchor="middle" fill="#eab308" font-size="13" font-weight="bold" font-family="sans-serif" letter-spacing="4">SUPERSTAR RAJINIKANTH</text>
+    <text x="150" y="255" text-anchor="middle" fill="url(#gold2)" font-size="36" font-weight="900" font-family="Impact, sans-serif" letter-spacing="4">JAILER 2</text>
+    <text x="150" y="285" text-anchor="middle" fill="#e4e4e7" font-size="12" font-family="sans-serif" letter-spacing="2">HUKUM RETURNS • NELSON DILIPKUMAR</text>
+    <rect x="40" y="310" width="220" height="1" fill="#ca8a04" opacity="0.5"/>
+    <text x="150" y="340" text-anchor="middle" fill="#a1a1aa" font-size="12" font-family="sans-serif">SUN PICTURES PRODUCTION</text>
+    <rect x="75" y="380" width="150" height="30" rx="15" fill="#ca8a04"/>
+    <text x="150" y="400" text-anchor="middle" fill="#000000" font-size="12" font-weight="bold" font-family="sans-serif" letter-spacing="1">OCTOBER 2026</text>
+  </svg>

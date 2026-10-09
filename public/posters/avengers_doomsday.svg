@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 450" width="300" height="450">
+    <defs>
+      <linearGradient id="bg6" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#064e3b"/>
+        <stop offset="50%" stop-color="#0f172a"/>
+        <stop offset="100%" stop-color="#020617"/>
+      </linearGradient>
+      <linearGradient id="silver" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#ffffff"/>
+        <stop offset="50%" stop-color="#94a3b8"/>
+        <stop offset="100%" stop-color="#475569"/>
+      </linearGradient>
+    </defs>
+    <rect width="300" height="450" fill="url(#bg6)"/>
+    <text x="150" y="160" text-anchor="middle" font-size="60">🛡️</text>
+    <text x="150" y="210" text-anchor="middle" fill="#34d399" font-size="11" font-family="sans-serif" letter-spacing="4">MARVEL STUDIOS</text>
+    <text x="150" y="255" text-anchor="middle" fill="url(#silver)" font-size="28" font-weight="900" font-family="Impact, sans-serif" letter-spacing="3">AVENGERS</text>
+    <text x="150" y="285" text-anchor="middle" fill="#34d399" font-size="18" font-weight="bold" font-family="sans-serif" letter-spacing="3">DOOMSDAY</text>
+    <rect x="50" y="310" width="200" height="1" fill="#10b981" opacity="0.4"/>
+    <text x="150" y="340" text-anchor="middle" fill="#e2e8f0" font-size="12" font-family="sans-serif">STARRING ROBERT DOWNEY JR.</text>
+    <rect x="75" y="380" width="150" height="30" rx="15" fill="#047857"/>
+    <text x="150" y="400" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="bold" font-family="sans-serif" letter-spacing="1">DECEMBER 2026</text>
+  </svg>
