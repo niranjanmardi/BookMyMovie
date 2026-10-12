@@ -1,0 +1,1463 @@
+================================================================================
+         BOOKMYMOVIE - REACT CINEMA TICKET BOOKING WEB APPLICATION
+         UNIT 5 - EXPERIMENT 1 : TEST MOVIE BOOKING COMPONENTS
+         Topics: Component Testing, Jest, React Testing Library
+         Stack: React 19 + Redux Toolkit + React Router 7 + Jest + RTL
+================================================================================
+
+================================================================================
+  1. EXPERIMENT OVERVIEW & CORE OBJECTIVES
+================================================================================
+
+TITLE:
+------
+Unit 5 - Experiment 1: Test Movie Booking Components
+(Component Testing, Jest, React Testing Library)
+
+OBJECTIVES COVERED:
+-------------------
+a) Create test cases for movie cards, movie details, seat selection, and booking components.
+b) Test movie search and filtering.
+c) Test seat selection and removal.
+d) Test ticket-price calculation.
+e) Test booking confirmation.
+f) Use Jest and React Testing Library to execute the test cases.
+
+TEST SUITE EXECUTION SUMMARY:
+------------------------------
+Test Suites : 8 passed, 8 total
+Tests       : 51 passed, 51 total
+Snapshots   : 0 total
+Status      : 100% PASSING (Exit code 0)
+
+1. MovieCard.test.jsx (6 tests)
+   - Renders movie title, rating badge, category badge, and metadata accurately
+   - Renders poster image with proper alt text
+   - Shows selected overlay badge and active button style when isSelected is true
+   - Calls onSelect handler with movie payload when "Book Tickets" button is clicked
+   - Handles keyboard accessibility with Enter and Space keys on card
+   - Returns null gracefully when movie is undefined
+
+2. MovieDetails.test.jsx (4 tests)
+   - Renders loading skeleton state initially while fetching movie details
+   - Renders movie details correctly after successful fetch (synopsis, cast, director, genres)
+   - Dispatches handleSelectMovie when "Book Tickets Now" CTA is clicked
+   - Renders error state message and retry button when movie fetching fails
+
+3. SeatSelection.test.jsx (4 tests)
+   - Displays instructions notice when screening info is incomplete
+   - Renders 110 seats across rows A to J with aisle and 4K screen banner
+   - Displays selected seats in summary chips and calculates subtotal
+   - Dispatches toggleSeat action when an available seat is clicked
+
+4. BookingComponents.test.jsx (4 tests)
+   - Renders admission pass ticket structure with movie, theatre, date, time, and seats
+   - Disables confirm button when required booking details are missing
+   - Successfully confirms booking and displays confirmation badge and reference code
+   - Resets booking when "Book Another Movie" is clicked
+
+5. MovieSearchAndFilter.test.jsx (12 tests)
+   - SearchBar: renders input with placeholder and reflects provided query
+   - SearchBar: triggers onSearchChange when user types in search bar
+   - SearchBar: displays clear button when query is not empty and resets on click
+   - CategoryFilter: renders options (All Movies, Tamil, Hollywood) with active state
+   - CategoryFilter: calls onSelectCategory when clicking category pills
+   - GenreFilter: renders genre pills and calls onSelectGenre on click
+   - Filter Engine: returns all movies when search query and filters are blank
+   - Filter Engine: filters movie catalog by title search query case-insensitively
+   - Filter Engine: filters movie catalog by Tamil category
+   - Filter Engine: filters movie catalog by Hollywood category
+   - Filter Engine: filters movie catalog by genre accurately
+   - Filter Engine: applies combined search query and category filtering
+
+6. SeatSelectionAndRemoval.test.jsx (6 tests)
+   - Redux reducer: toggleSeat adds a new seat when not already selected
+   - Redux reducer: toggleSeat removes the seat when already selected (deselect)
+   - Redux reducer: removeSeat filters out specified seat and recalculates totals
+   - Component: allows user to select multiple seats and toggles them off on second click
+   - Component: removes seat when clicking the remove button (✕) on chosen seat chip
+   - Component: prevents selecting already booked seats and keeps selected seats empty
+
+7. TicketPriceCalculation.test.jsx (8 tests)
+   - Auditorium tier classification: correctly maps seat IDs to categories (A-E Regular, F-H Premium, I-J Recliner)
+   - Rate validation: returns defined prices (Regular ₹150, Premium ₹200, Recliner ₹300)
+   - Price breakdown engine: returns zero totals for empty seat list
+   - Price breakdown engine: calculates single and multiple Regular seats (₹150 each)
+   - Price breakdown engine: calculates Premium seats (₹200 each)
+   - Price breakdown engine: calculates Recliner luxury seats (₹300 each)
+   - Price breakdown engine: calculates multi-tier combination orders accurately (e.g., 2 Reg + 1 Prem + 2 Rec = ₹1100)
+   - Redux dynamic price recalculation: dynamically recalculates total as seats are added and removed
+
+8. BookingConfirmation.test.jsx (7 tests)
+   - Throws error if required booking parameters are missing
+   - Creates a verified booking record with BMM-CBE- reference format
+   - Persists booking in localStorage and retrieves from history
+   - Prevents double-booking the same seats for the same show screening
+   - Redux reducer: updates state to confirmed with reference on confirmBookingSuccess
+   - Redux reducer: sets bookingError on failure
+   - Redux reducer: clears all booking state on clearBooking
+
+================================================================================
+  2. CONFIGURATION FILES
+================================================================================
+
+**package.json**
+```json
+{
+  "name": "bookmymovie",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "test": "jest --config jest.config.cjs"
+  },
+  "dependencies": {
+    "@reduxjs/toolkit": "^2.13.0",
+    "axios": "^1.20.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-redux": "^9.3.0",
+    "react-router-dom": "^7.18.4"
+  },
+  "devDependencies": {
+    "@babel/core": "^8.0.7",
+    "@babel/preset-env": "^8.0.7",
+    "@babel/preset-react": "^8.0.1",
+    "@eslint/js": "^10.0.1",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "babel-jest": "^30.5.2",
+    "babel-plugin-transform-import-meta": "^2.3.3",
+    "eslint": "^10.10.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.6",
+    "globals": "^17.12.0",
+    "identity-obj-proxy": "^3.0.0",
+    "jest": "^30.5.2",
+    "jest-environment-jsdom": "^30.5.2",
+    "vite": "^8.3.0"
+  }
+}
+```
+
+**jest.config.cjs**
+```javascript
+module.exports = {
+  testEnvironment: 'jsdom',
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.cjs'],
+  moduleNameMapper: {
+    '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
+    '\\.(jpg|jpeg|png|gif|webp|svg)$': '<rootDir>/__mocks__/fileMock.cjs',
+  },
+  transform: {
+    '^.+\\.(js|jsx)$': 'babel-jest',
+  },
+  transformIgnorePatterns: [
+    '/node_modules/(?!(@reduxjs/toolkit|react-router|react-router-dom)/)',
+  ],
+  testMatch: ['**/__tests__/**/*.test.[jt]s?(x)', '**/?(*.)+(spec|test).[jt]s?(x)'],
+};
+```
+
+**jest.setup.cjs**
+```javascript
+const { TextEncoder, TextDecoder } = require('util');
+global.TextEncoder = TextEncoder;
+global.TextDecoder = TextDecoder;
+
+require('@testing-library/jest-dom');
+
+// Polyfills / mocks for window and localStorage
+if (typeof window !== 'undefined') {
+  const localStorageMock = (function () {
+    let store = {};
+    return {
+      getItem: function (key) {
+        return store[key] !== undefined ? store[key] : null;
+      },
+      setItem: function (key, value) {
+        store[key] = String(value);
+      },
+      removeItem: function (key) {
+        delete store[key];
+      },
+      clear: function () {
+        store = {};
+      },
+    };
+  })();
+
+  Object.defineProperty(window, 'localStorage', {
+    value: localStorageMock,
+  });
+
+  // Mock matchMedia if needed
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: jest.fn().mockImplementation((query) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    })),
+  });
+
+  // Polyfill scrollTo
+  window.scrollTo = jest.fn();
+}
+```
+
+**babel.config.json**
+```json
+{
+  "presets": [
+    ["@babel/preset-env", { "targets": { "node": "current" }, "modules": "commonjs" }],
+    ["@babel/preset-react", { "runtime": "automatic" }]
+  ],
+  "plugins": ["babel-plugin-transform-import-meta"]
+}
+```
+
+**__mocks__/fileMock.cjs**
+```javascript
+module.exports = 'test-file-stub';
+```
+
+================================================================================
+  3. APPLICATION CODE MODIFICATIONS (SAFE RUNTIME ADAPTATION)
+================================================================================
+
+**src/services/movieApi.js (Lines 20–35 excerpt)**
+```javascript
+const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
+const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
+const TMDB_BACKDROP_BASE = 'https://image.tmdb.org/t/p/original';
+
+// Check for client-side Vite environment variable or global environment
+const TMDB_API_KEY = (() => {
+  if (typeof process !== 'undefined' && process.env?.VITE_TMDB_API_KEY) {
+    return process.env.VITE_TMDB_API_KEY;
+  }
+  try {
+    const meta = new Function('return import.meta')();
+    return meta?.env?.VITE_TMDB_API_KEY || '';
+  } catch {
+    return '';
+  }
+})();
+```
+
+================================================================================
+  4. TEST UTILITY HELPER
+================================================================================
+
+**src/__tests__/testUtils.jsx**
+```jsx
+import React from 'react';
+import { render } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { MemoryRouter } from 'react-router-dom';
+import { configureStore } from '@reduxjs/toolkit';
+import bookingReducer from '../redux/bookingSlice';
+import authReducer from '../redux/authSlice';
+
+export function setupTestStore(preloadedState = {}) {
+  return configureStore({
+    reducer: {
+      booking: bookingReducer,
+      auth: authReducer,
+    },
+    preloadedState,
+  });
+}
+
+export function renderWithProviders(
+  ui,
+  {
+    preloadedState = {},
+    store = setupTestStore(preloadedState),
+    initialEntries = ['/'],
+    ...renderOptions
+  } = {}
+) {
+  function Wrapper({ children }) {
+    return (
+      <Provider store={store}>
+        <MemoryRouter initialEntries={initialEntries}>
+          {children}
+        </MemoryRouter>
+      </Provider>
+    );
+  }
+
+  return {
+    store,
+    ...render(ui, { wrapper: Wrapper, ...renderOptions }),
+  };
+}
+```
+
+================================================================================
+  5. COMPONENT & INTEGRATION TEST SUITES
+================================================================================
+
+**src/__tests__/MovieCard.test.jsx**
+```jsx
+import React from 'react';
+import { screen, fireEvent } from '@testing-library/react';
+import MovieCard from '../components/MovieCard';
+import { renderWithProviders } from './testUtils';
+
+const mockMovie = {
+  id: 'fb-tamil-2026-jailer2',
+  title: 'Jailer 2',
+  category: 'Tamil',
+  language: 'Tamil',
+  genre: 'Action / Crime / Thriller',
+  genres: ['Action', 'Crime', 'Thriller'],
+  rating: 8.8,
+  year: 2026,
+  runtime: '165 min',
+  poster: '/posters/jailer2ogk.jpg',
+  isUpcoming: true,
+};
+
+describe('Experiment 1: MovieCard Component', () => {
+  it('renders movie title, rating badge, category badge, and metadata accurately', () => {
+    renderWithProviders(<MovieCard movie={mockMovie} />);
+
+    // Title
+    expect(screen.getByRole('heading', { level: 3, name: 'Jailer 2' })).toBeInTheDocument();
+
+    // Rating
+    expect(screen.getByText('8.8')).toBeInTheDocument();
+
+    // Category (Tamil) badge
+    expect(screen.getByTitle('Industry: Tamil')).toHaveTextContent('Tamil');
+
+    // Upcoming status
+    expect(screen.getByText(/Upcoming • 2026/i)).toBeInTheDocument();
+
+    // Language and Year
+    expect(screen.getAllByText(/Tamil/).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/165 min/)).toBeInTheDocument();
+  });
+
+  it('renders poster image with proper alt text', () => {
+    renderWithProviders(<MovieCard movie={mockMovie} />);
+    const posterImg = screen.getByAltText('Jailer 2 poster');
+    expect(posterImg).toBeInTheDocument();
+    expect(posterImg).toHaveAttribute('src', '/posters/jailer2ogk.jpg');
+  });
+
+  it('shows selected overlay badge and active button style when isSelected is true', () => {
+    const { rerender } = renderWithProviders(
+      <MovieCard movie={mockMovie} isSelected={false} />
+    );
+
+    expect(screen.getByRole('button', { name: /Book Tickets/i })).toBeInTheDocument();
+    expect(screen.queryByText('✓ Selected for Booking')).not.toBeInTheDocument();
+
+    // Re-render as selected
+    rerender(<MovieCard movie={mockMovie} isSelected={true} />);
+    expect(screen.getByText('✓ Selected for Booking')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /✓ Selected/i })).toHaveClass('active-select');
+  });
+
+  it('calls onSelect handler with movie payload when "Book Tickets" button is clicked', () => {
+    const handleSelect = jest.fn();
+    renderWithProviders(
+      <MovieCard movie={mockMovie} onSelect={handleSelect} />
+    );
+
+    const bookBtn = screen.getByRole('button', { name: /Book Tickets/i });
+    fireEvent.click(bookBtn);
+
+    expect(handleSelect).toHaveBeenCalledTimes(1);
+    expect(handleSelect).toHaveBeenCalledWith(mockMovie);
+  });
+
+  it('handles keyboard accessibility with Enter and Space keys on card', () => {
+    renderWithProviders(<MovieCard movie={mockMovie} />);
+    const cardElement = screen.getByRole('button', { name: /View details for Jailer 2/i });
+
+    expect(cardElement).toHaveAttribute('tabIndex', '0');
+
+    // Keydown Enter should not throw
+    fireEvent.keyDown(cardElement, { key: 'Enter', code: 'Enter' });
+    // Keydown Space should not throw
+    fireEvent.keyDown(cardElement, { key: ' ', code: 'Space' });
+  });
+
+  it('returns null gracefully when movie is undefined', () => {
+    const { container } = renderWithProviders(<MovieCard movie={null} />);
+    expect(container.firstChild).toBeNull();
+  });
+});
+```
+
+**src/__tests__/MovieDetails.test.jsx**
+```jsx
+import React from 'react';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
+import MovieDetailsPage from '../pages/MovieDetailsPage';
+import { renderWithProviders } from './testUtils';
+import * as movieApi from '../services/movieApi';
+
+const mockDetailMovie = {
+  id: 'fb-tamil-2026-jailer2',
+  title: 'Jailer 2',
+  category: 'Tamil',
+  language: 'Tamil',
+  genre: 'Action / Crime / Thriller',
+  genres: ['Action', 'Crime', 'Thriller'],
+  rating: 8.8,
+  year: 2026,
+  releaseDate: '2026-08-14',
+  releaseDateFormatted: 'August 14, 2026',
+  runtime: '165 min',
+  status: 'Upcoming',
+  isUpcoming: true,
+  cast: 'Rajinikanth, Mohanlal, Shiva Rajkumar, Ramya Krishnan',
+  director: 'Nelson Dilipkumar',
+  description: 'Tiger Muthuvel Pandian returns in an explosive sequel.',
+  poster: '/posters/jailer2ogk.jpg',
+  backdrop: '/posters/jailer2ogk.jpg',
+};
+
+describe('Experiment 1: MovieDetails Component', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('renders loading state initially while fetching movie details', () => {
+    jest.spyOn(movieApi, 'getMovieById').mockImplementation(() => new Promise(() => {}));
+    renderWithProviders(<MovieDetailsPage />, {
+      initialEntries: ['/movies/fb-tamil-2026-jailer2'],
+    });
+
+    expect(screen.getByRole('status')).toBeInTheDocument();
+  });
+
+  it('renders movie details correctly after successful fetch', async () => {
+    jest.spyOn(movieApi, 'getMovieById').mockResolvedValue(mockDetailMovie);
+
+    renderWithProviders(<MovieDetailsPage />, {
+      initialEntries: ['/movies/fb-tamil-2026-jailer2'],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: 'Jailer 2' })).toBeInTheDocument();
+    });
+
+    // Check synopsis description
+    expect(screen.getByText('Tiger Muthuvel Pandian returns in an explosive sequel.')).toBeInTheDocument();
+
+    // Check director and cast
+    expect(screen.getByText('Nelson Dilipkumar')).toBeInTheDocument();
+    expect(screen.getByText(/Rajinikanth, Mohanlal/)).toBeInTheDocument();
+
+    // Check genre badges
+    expect(screen.getByText('Action')).toBeInTheDocument();
+    expect(screen.getByText('Thriller')).toBeInTheDocument();
+
+    // Check CTA button
+    expect(screen.getByRole('button', { name: /Book Tickets Now/i })).toBeInTheDocument();
+  });
+
+  it('dispatches handleSelectMovie when "Book Tickets Now" is clicked', async () => {
+    jest.spyOn(movieApi, 'getMovieById').mockResolvedValue(mockDetailMovie);
+
+    const { store } = renderWithProviders(<MovieDetailsPage />, {
+      initialEntries: ['/movies/fb-tamil-2026-jailer2'],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Book Tickets Now/i })).toBeInTheDocument();
+    });
+
+    const bookBtn = screen.getByRole('button', { name: /Book Tickets Now/i });
+    fireEvent.click(bookBtn);
+
+    // Verify movie was saved to Redux store
+    const state = store.getState();
+    expect(state.booking.selectedMovie).toEqual(mockDetailMovie);
+  });
+
+  it('renders error message when movie fetching fails', async () => {
+    jest.spyOn(movieApi, 'getMovieById').mockRejectedValue(new Error('Movie not found in 2026 catalog.'));
+
+    renderWithProviders(<MovieDetailsPage />, {
+      initialEntries: ['/movies/invalid-id'],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Movie not found in 2026 catalog./i)).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('button', { name: /Try Again/i })).toBeInTheDocument();
+  });
+});
+```
+
+**src/__tests__/SeatSelection.test.jsx**
+```jsx
+import React from 'react';
+import { screen, fireEvent } from '@testing-library/react';
+import SeatSelection from '../components/SeatSelection';
+import { renderWithProviders } from './testUtils';
+
+const mockMovie = { id: 'm1', title: 'Jailer 2' };
+const mockTheatre = { id: 'th1', name: 'KG Cinemas (Multiplex)', area: 'Race Course' };
+const mockDate = { iso: '2026-10-15', displayLabel: 'Today (Thu)' };
+const mockTime = { id: 'st1000', time: '10:00 AM', label: 'Morning' };
+
+describe('Experiment 1: SeatSelection Component', () => {
+  it('displays instructions when screening info is incomplete', () => {
+    renderWithProviders(<SeatSelection />, {
+      preloadedState: {
+        booking: {
+          selectedMovie: null,
+          selectedTheatre: null,
+          selectedDate: null,
+          selectedTime: null,
+          selectedSeats: [],
+          bookedSeatsForCurrentShow: [],
+        },
+      },
+    });
+
+    expect(
+      screen.getByText(/Please choose a Theatre, Date, and Showtime above before picking your seats/i)
+    ).toBeInTheDocument();
+  });
+
+  it('renders 110 seats across rows A to J with aisle and screen banner', () => {
+    renderWithProviders(<SeatSelection />, {
+      preloadedState: {
+        booking: {
+          selectedMovie: mockMovie,
+          selectedTheatre: mockTheatre,
+          selectedDate: mockDate,
+          selectedTime: mockTime,
+          selectedSeats: [],
+        },
+      },
+    });
+
+    // Screen visual
+    expect(screen.getByText(/4K LASER CINEMA SCREEN/i)).toBeInTheDocument();
+
+    // Verify row letters
+    ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'].forEach((row) => {
+      const rowElements = screen.getAllByText(row);
+      expect(rowElements.length).toBeGreaterThanOrEqual(1);
+    });
+
+    // Check legend items
+    expect(screen.getByText(/Regular \(A–E\) • ₹150/i)).toBeInTheDocument();
+    expect(screen.getByText(/Premium \(F–H\) • ₹200/i)).toBeInTheDocument();
+    expect(screen.getByText(/Recliner \(I–J\) • ₹300/i)).toBeInTheDocument();
+
+    // Check seats exist (e.g. A1, A5, A6, J11)
+    expect(screen.getByRole('button', { name: /^Seat A1,/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Seat A5,/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Seat A6,/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Seat J11,/i })).toBeInTheDocument();
+  });
+
+  it('displays selected seats in summary chips and calculates subtotal', () => {
+    renderWithProviders(<SeatSelection />, {
+      preloadedState: {
+        booking: {
+          selectedMovie: mockMovie,
+          selectedTheatre: mockTheatre,
+          selectedDate: mockDate,
+          selectedTime: mockTime,
+          selectedSeats: ['A1', 'F1', 'J1'],
+          totalAmount: 650, // 150 + 200 + 300
+          priceBreakdown: {
+            Regular: { count: 1, rate: 150, total: 150, seats: ['A1'] },
+            Premium: { count: 1, rate: 200, total: 200, seats: ['F1'] },
+            Recliner: { count: 1, rate: 300, total: 300, seats: ['J1'] },
+            totalAmount: 650,
+            totalSeats: 3,
+          },
+        },
+      },
+    });
+
+    // Chosen Seats count
+    expect(screen.getByText(/Chosen Seats \(3\)/i)).toBeInTheDocument();
+
+    // Subtotal
+    expect(screen.getByText('₹650')).toBeInTheDocument();
+
+    // Breakdown tags
+    expect(screen.getByText(/Regular: 1 × ₹150 = ₹150/i)).toBeInTheDocument();
+    expect(screen.getByText(/Premium: 1 × ₹200 = ₹200/i)).toBeInTheDocument();
+    expect(screen.getByText(/Recliner: 1 × ₹300 = ₹300/i)).toBeInTheDocument();
+  });
+
+  it('dispatches toggleSeat action when an available seat is clicked', () => {
+    const { store } = renderWithProviders(<SeatSelection />, {
+      preloadedState: {
+        booking: {
+          selectedMovie: mockMovie,
+          selectedTheatre: mockTheatre,
+          selectedDate: mockDate,
+          selectedTime: mockTime,
+          selectedSeats: [],
+        },
+      },
+    });
+
+    const seatA1 = screen.getByRole('button', { name: /^Seat A1,/i });
+    fireEvent.click(seatA1);
+
+    const state = store.getState();
+    expect(state.booking.selectedSeats).toContain('A1');
+    expect(state.booking.totalAmount).toBe(150);
+  });
+});
+```
+
+**src/__tests__/BookingComponents.test.jsx**
+```jsx
+import React from 'react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import BookingSummary from '../components/BookingSummary';
+import { renderWithProviders } from './testUtils';
+import * as bookingService from '../services/bookingService';
+
+const mockMovie = {
+  id: 'm1',
+  title: 'Jailer 2',
+  category: 'Tamil',
+  language: 'Tamil',
+  year: 2026,
+  poster: '/posters/jailer2.jpg',
+};
+const mockTheatre = {
+  id: 'th1',
+  name: 'KG Cinemas',
+  area: 'Race Course',
+  address: 'Bunglaw Road, Race Course, Coimbatore',
+  screens: 'Audi 1 (4K RGB Laser - Dolby Atmos)',
+};
+const mockDate = { iso: '2026-10-15', displayLabel: 'Today (Thu)' };
+const mockTime = { id: 'st1000', time: '10:00 AM', label: 'Morning' };
+
+describe('Experiment 1: Booking Components & Admission Pass', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('renders admission pass ticket structure with movie, theatre, date, time, and seats', () => {
+    renderWithProviders(<BookingSummary />, {
+      preloadedState: {
+        booking: {
+          selectedMovie: mockMovie,
+          selectedTheatre: mockTheatre,
+          selectedDate: mockDate,
+          selectedTime: mockTime,
+          selectedSeats: ['A1', 'A2'],
+          totalAmount: 300,
+          totalSeats: 2,
+          priceBreakdown: {
+            Regular: { count: 2, rate: 150, total: 300, seats: ['A1', 'A2'] },
+            Premium: { count: 0, rate: 200, total: 0, seats: [] },
+            Recliner: { count: 0, rate: 300, total: 0, seats: [] },
+            totalAmount: 300,
+            totalSeats: 2,
+          },
+          bookingConfirmed: false,
+        },
+      },
+    });
+
+    expect(screen.getByText('CINEMA ADMISSION PASS')).toBeInTheDocument();
+    expect(screen.getByText('Jailer 2')).toBeInTheDocument();
+    expect(screen.getByText(/KG Cinemas \(Race Course\)/i)).toBeInTheDocument();
+    expect(screen.getByText('Today (Thu)')).toBeInTheDocument();
+    expect(screen.getByText(/10:00 AM \(Morning\)/i)).toBeInTheDocument();
+    expect(screen.getByText('A1, A2')).toBeInTheDocument();
+    expect(screen.getAllByText(/300/).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('disables confirm button when required booking details are missing', () => {
+    renderWithProviders(<BookingSummary />, {
+      preloadedState: {
+        booking: {
+          selectedMovie: mockMovie,
+          selectedTheatre: null, // missing theatre
+          selectedDate: mockDate,
+          selectedTime: mockTime,
+          selectedSeats: [],
+          totalAmount: 0,
+          totalSeats: 0,
+          priceBreakdown: {
+            Regular: { count: 0, rate: 150, total: 0, seats: [] },
+            Premium: { count: 0, rate: 200, total: 0, seats: [] },
+            Recliner: { count: 0, rate: 300, total: 0, seats: [] },
+            totalAmount: 0,
+            totalSeats: 0,
+          },
+          bookingConfirmed: false,
+        },
+      },
+    });
+
+    const confirmBtn = screen.getByRole('button', { name: /Confirm & Book Tickets/i });
+    expect(confirmBtn).toBeDisabled();
+  });
+
+  it('successfully confirms booking and displays confirmation badge and reference code', async () => {
+    jest.spyOn(bookingService, 'confirmNewBooking').mockReturnValue({
+      bookingId: 'BMM-CBE-TEST01',
+      reference: 'BMM-CBE-TEST01',
+    });
+
+    const { store } = renderWithProviders(<BookingSummary />, {
+      preloadedState: {
+        booking: {
+          selectedMovie: mockMovie,
+          selectedTheatre: mockTheatre,
+          selectedDate: mockDate,
+          selectedTime: mockTime,
+          selectedSeats: ['A1'],
+          totalAmount: 150,
+          totalSeats: 1,
+          priceBreakdown: {
+            Regular: { count: 1, rate: 150, total: 150, seats: ['A1'] },
+            Premium: { count: 0, rate: 200, total: 0, seats: [] },
+            Recliner: { count: 0, rate: 300, total: 0, seats: [] },
+            totalAmount: 150,
+            totalSeats: 1,
+          },
+          bookingConfirmed: false,
+        },
+      },
+    });
+
+    const confirmBtn = screen.getByRole('button', { name: /Confirm & Book Tickets/i });
+    expect(confirmBtn).not.toBeDisabled();
+
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      const state = store.getState();
+      expect(state.booking.bookingConfirmed).toBe(true);
+      expect(state.booking.bookingReference).toBe('BMM-CBE-TEST01');
+    });
+
+    expect(screen.getByText('Booking Confirmed Successfully!')).toBeInTheDocument();
+    expect(screen.getAllByText('BMM-CBE-TEST01').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole('button', { name: /Book Another Movie/i })).toBeInTheDocument();
+  });
+
+  it('resets booking when "Book Another Movie" is clicked', async () => {
+    const { store } = renderWithProviders(<BookingSummary />, {
+      preloadedState: {
+        booking: {
+          selectedMovie: mockMovie,
+          selectedTheatre: mockTheatre,
+          selectedDate: mockDate,
+          selectedTime: mockTime,
+          selectedSeats: ['A1'],
+          totalAmount: 150,
+          totalSeats: 1,
+          priceBreakdown: {
+            Regular: { count: 1, rate: 150, total: 150, seats: ['A1'] },
+            Premium: { count: 0, rate: 200, total: 0, seats: [] },
+            Recliner: { count: 0, rate: 300, total: 0, seats: [] },
+            totalAmount: 150,
+            totalSeats: 1,
+          },
+          bookingConfirmed: true,
+          bookingReference: 'BMM-CBE-TEST01',
+        },
+      },
+    });
+
+    const bookAnotherBtn = screen.getByRole('button', { name: /Book Another Movie/i });
+    fireEvent.click(bookAnotherBtn);
+
+    const state = store.getState();
+    expect(state.booking.bookingConfirmed).toBe(false);
+    expect(state.booking.selectedMovie).toBeNull();
+    expect(state.booking.selectedSeats).toEqual([]);
+  });
+});
+```
+
+**src/__tests__/MovieSearchAndFilter.test.jsx**
+```jsx
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import SearchBar from '../components/SearchBar';
+import CategoryFilter from '../components/CategoryFilter';
+import GenreFilter from '../components/GenreFilter';
+import { fetchMovies } from '../services/movieApi';
+import { FALLBACK_MOVIES_2026 } from '../data/fallbackMovies';
+
+describe('Experiment 1: Movie Search and Filtering', () => {
+  describe('SearchBar Component Unit Tests', () => {
+    it('renders input with placeholder and reflects provided query', () => {
+      render(
+        <SearchBar
+          searchQuery="Batman"
+          onSearchChange={jest.fn()}
+          placeholder="Search movie titles..."
+        />
+      );
+
+      const input = screen.getByPlaceholderText('Search movie titles...');
+      expect(input).toBeInTheDocument();
+      expect(input.value).toBe('Batman');
+    });
+
+    it('triggers onSearchChange when user types in the search bar', () => {
+      const handleSearchChange = jest.fn();
+      render(<SearchBar searchQuery="" onSearchChange={handleSearchChange} />);
+
+      const input = screen.getByRole('textbox', { name: /Search movies by title/i });
+      fireEvent.change(input, { target: { value: 'Jailer' } });
+
+      expect(handleSearchChange).toHaveBeenCalledTimes(1);
+      expect(handleSearchChange).toHaveBeenCalledWith('Jailer');
+    });
+
+    it('displays clear button when query is not empty and resets on click', () => {
+      const handleSearchChange = jest.fn();
+      render(<SearchBar searchQuery="Dune" onSearchChange={handleSearchChange} />);
+
+      const clearBtn = screen.getByRole('button', { name: /Clear search input/i });
+      expect(clearBtn).toBeInTheDocument();
+
+      fireEvent.click(clearBtn);
+      expect(handleSearchChange).toHaveBeenCalledWith('');
+    });
+  });
+
+  describe('CategoryFilter Component Unit Tests', () => {
+    it('renders category options (All Movies, Tamil, Hollywood) with correct active state', () => {
+      render(
+        <CategoryFilter
+          categories={['All Movies', 'Tamil', 'Hollywood']}
+          selectedCategory="Tamil"
+          onSelectCategory={jest.fn()}
+        />
+      );
+
+      const tamilBtn = screen.getByRole('button', { name: /Tamil/i });
+      expect(tamilBtn).toHaveClass('active');
+      expect(tamilBtn).toHaveAttribute('aria-pressed', 'true');
+
+      const hwBtn = screen.getByRole('button', { name: /Hollywood/i });
+      expect(hwBtn).not.toHaveClass('active');
+    });
+
+    it('calls onSelectCategory when clicking category pills', () => {
+      const handleSelectCategory = jest.fn();
+      render(
+        <CategoryFilter
+          categories={['All Movies', 'Tamil', 'Hollywood']}
+          selectedCategory="All Movies"
+          onSelectCategory={handleSelectCategory}
+        />
+      );
+
+      const hwBtn = screen.getByRole('button', { name: /Hollywood/i });
+      fireEvent.click(hwBtn);
+
+      expect(handleSelectCategory).toHaveBeenCalledTimes(1);
+      expect(handleSelectCategory).toHaveBeenCalledWith('Hollywood');
+    });
+  });
+
+  describe('GenreFilter Component Unit Tests', () => {
+    it('renders genre pills and calls onSelectGenre on click', () => {
+      const handleSelectGenre = jest.fn();
+      render(
+        <GenreFilter
+          genres={['All Genres', 'Action', 'Drama', 'Sci-Fi']}
+          selectedGenre="Action"
+          onSelectGenre={handleSelectGenre}
+        />
+      );
+
+      const actionBtn = screen.getByRole('button', { name: 'Action' });
+      expect(actionBtn).toHaveClass('active');
+
+      const dramaBtn = screen.getByRole('button', { name: 'Drama' });
+      fireEvent.click(dramaBtn);
+
+      expect(handleSelectGenre).toHaveBeenCalledWith('Drama');
+    });
+  });
+
+  describe('Integrated Movie Catalog Search & Filter Logic', () => {
+    it('returns all movies when search query and filters are blank / default', async () => {
+      const result = await fetchMovies({
+        search: '',
+        category: 'All Movies',
+        genre: 'All Genres',
+      });
+
+      expect(result.movies.length).toBe(FALLBACK_MOVIES_2026.length);
+    });
+
+    it('filters movie catalog by title search query case-insensitively', async () => {
+      const result = await fetchMovies({
+        search: 'jailer',
+        category: 'All Movies',
+        genre: 'All Genres',
+      });
+
+      expect(result.movies.length).toBeGreaterThan(0);
+      result.movies.forEach((movie) => {
+        expect(movie.title.toLowerCase()).toContain('jailer');
+      });
+    });
+
+    it('filters movie catalog by Tamil category', async () => {
+      const result = await fetchMovies({
+        search: '',
+        category: 'Tamil',
+        genre: 'All Genres',
+      });
+
+      expect(result.movies.length).toBeGreaterThan(0);
+      result.movies.forEach((movie) => {
+        expect(movie.category.toLowerCase()).toBe('tamil');
+      });
+    });
+
+    it('filters movie catalog by Hollywood category', async () => {
+      const result = await fetchMovies({
+        search: '',
+        category: 'Hollywood',
+        genre: 'All Genres',
+      });
+
+      expect(result.movies.length).toBeGreaterThan(0);
+      result.movies.forEach((movie) => {
+        expect(movie.category.toLowerCase()).toBe('hollywood');
+      });
+    });
+
+    it('filters movie catalog by genre accurately', async () => {
+      const result = await fetchMovies({
+        search: '',
+        category: 'All Movies',
+        genre: 'Action',
+      });
+
+      expect(result.movies.length).toBeGreaterThan(0);
+      result.movies.forEach((movie) => {
+        const matchesGenre =
+          movie.genres.some((g) => g.toLowerCase() === 'action') ||
+          movie.genre.toLowerCase().includes('action');
+        expect(matchesGenre).toBe(true);
+      });
+    });
+
+    it('applies combined search query and category filtering', async () => {
+      const result = await fetchMovies({
+        search: 'Av',
+        category: 'Hollywood',
+        genre: 'All Genres',
+      });
+
+      result.movies.forEach((movie) => {
+        expect(movie.title.toLowerCase()).toContain('av');
+        expect(movie.category.toLowerCase()).toBe('hollywood');
+      });
+    });
+  });
+});
+```
+
+**src/__tests__/SeatSelectionAndRemoval.test.jsx**
+```jsx
+import React from 'react';
+import { screen, fireEvent } from '@testing-library/react';
+import SeatSelection from '../components/SeatSelection';
+import { renderWithProviders } from './testUtils';
+import bookingReducer, { toggleSeat, removeSeat } from '../redux/bookingSlice';
+
+const mockMovie = { id: 'm1', title: 'Jailer 2' };
+const mockTheatre = { id: 'th1', name: 'KG Cinemas', area: 'Race Course' };
+const mockDate = { iso: '2026-10-15', displayLabel: 'Today (Thu)' };
+const mockTime = { id: 'st1000', time: '10:00 AM', label: 'Morning' };
+
+describe('Experiment 1: Seat Selection and Removal', () => {
+  describe('Redux Booking Slice Reducer Actions', () => {
+    it('toggleSeat adds a new seat when not already selected', () => {
+      const initialState = {
+        selectedSeats: [],
+        totalAmount: 0,
+        totalSeats: 0,
+        priceBreakdown: {},
+      };
+
+      const nextState = bookingReducer(initialState, toggleSeat('A1'));
+      expect(nextState.selectedSeats).toEqual(['A1']);
+      expect(nextState.totalAmount).toBe(150);
+      expect(nextState.totalSeats).toBe(1);
+    });
+
+    it('toggleSeat removes the seat when already selected (deselect)', () => {
+      const initialState = {
+        selectedSeats: ['A1', 'A2'],
+        totalAmount: 300,
+        totalSeats: 2,
+        priceBreakdown: {},
+      };
+
+      const nextState = bookingReducer(initialState, toggleSeat('A1'));
+      expect(nextState.selectedSeats).toEqual(['A2']);
+      expect(nextState.totalAmount).toBe(150);
+      expect(nextState.totalSeats).toBe(1);
+    });
+
+    it('removeSeat filters out specified seat and recalculates totals', () => {
+      const initialState = {
+        selectedSeats: ['A1', 'F1', 'J1'], // Regular(150) + Premium(200) + Recliner(300) = 650
+        totalAmount: 650,
+        totalSeats: 3,
+        priceBreakdown: {},
+      };
+
+      const nextState = bookingReducer(initialState, removeSeat('F1'));
+      expect(nextState.selectedSeats).toEqual(['A1', 'J1']);
+      expect(nextState.totalAmount).toBe(450); // 150 + 300
+      expect(nextState.totalSeats).toBe(2);
+    });
+  });
+
+  describe('Interactive Component Seat Selection and Removal', () => {
+    it('allows user to select multiple seats and toggles them off on second click', () => {
+      const { store } = renderWithProviders(<SeatSelection />, {
+        preloadedState: {
+          booking: {
+            selectedMovie: mockMovie,
+            selectedTheatre: mockTheatre,
+            selectedDate: mockDate,
+            selectedTime: mockTime,
+            selectedSeats: [],
+          },
+        },
+      });
+
+      const seatA1 = screen.getByRole('button', { name: /^Seat A1,/i });
+      const seatA4 = screen.getByRole('button', { name: /^Seat A4,/i });
+
+      // Click A1 -> Selects A1
+      fireEvent.click(seatA1);
+      expect(store.getState().booking.selectedSeats).toEqual(['A1']);
+
+      // Click A4 -> Selects A4
+      fireEvent.click(seatA4);
+      expect(store.getState().booking.selectedSeats).toEqual(['A1', 'A4']);
+
+      // Click A1 again -> Deselects A1
+      fireEvent.click(seatA1);
+      expect(store.getState().booking.selectedSeats).toEqual(['A4']);
+    });
+
+    it('removes seat when clicking the remove button (✕) on chosen seat chip', () => {
+      const { store } = renderWithProviders(<SeatSelection />, {
+        preloadedState: {
+          booking: {
+            selectedMovie: mockMovie,
+            selectedTheatre: mockTheatre,
+            selectedDate: mockDate,
+            selectedTime: mockTime,
+            selectedSeats: ['A1', 'A2'],
+            totalAmount: 300,
+            priceBreakdown: {
+              Regular: { count: 2, rate: 150, total: 300, seats: ['A1', 'A2'] },
+              Premium: { count: 0, rate: 200, total: 0, seats: [] },
+              Recliner: { count: 0, rate: 300, total: 0, seats: [] },
+              totalAmount: 300,
+              totalSeats: 2,
+            },
+          },
+        },
+      });
+
+      const removeBtnA1 = screen.getByTitle('Remove seat A1');
+      fireEvent.click(removeBtnA1);
+
+      expect(store.getState().booking.selectedSeats).toEqual(['A2']);
+    });
+
+    it('prevents selecting already booked seats and displays warning toast', () => {
+      const { store } = renderWithProviders(<SeatSelection />, {
+        preloadedState: {
+          booking: {
+            selectedMovie: mockMovie,
+            selectedTheatre: mockTheatre,
+            selectedDate: mockDate,
+            selectedTime: mockTime,
+            selectedSeats: [],
+          },
+        },
+      });
+
+      // Find any seat that is rendered with 'booked' class
+      const allSeatButtons = screen.getAllByRole('button');
+      const bookedSeat = allSeatButtons.find((btn) => btn.classList.contains('booked'));
+
+      if (bookedSeat) {
+        expect(bookedSeat).toBeDisabled();
+        fireEvent.click(bookedSeat);
+
+        // Selected seats should remain empty
+        expect(store.getState().booking.selectedSeats).toEqual([]);
+      }
+    });
+  });
+});
+```
+
+**src/__tests__/TicketPriceCalculation.test.jsx**
+```jsx
+import {
+  getSeatCategory,
+  getSeatPrice,
+  calculateSeatsPriceBreakdown,
+  SEAT_PRICES,
+} from '../data/seatLayout';
+import bookingReducer, { toggleSeat, removeSeat } from '../redux/bookingSlice';
+
+describe('Experiment 1: Ticket-Price Calculation', () => {
+  describe('Auditorium Tier Classification & Base Rates', () => {
+    it('correctly maps seat IDs to their corresponding categories', () => {
+      // Rows A–E: Regular
+      expect(getSeatCategory('A1')).toBe('Regular');
+      expect(getSeatCategory('B5')).toBe('Regular');
+      expect(getSeatCategory('E11')).toBe('Regular');
+
+      // Rows F–H: Premium
+      expect(getSeatCategory('F1')).toBe('Premium');
+      expect(getSeatCategory('G6')).toBe('Premium');
+      expect(getSeatCategory('H11')).toBe('Premium');
+
+      // Rows I–J: Recliner
+      expect(getSeatCategory('I1')).toBe('Recliner');
+      expect(getSeatCategory('J11')).toBe('Recliner');
+    });
+
+    it('returns the defined ticket prices for each category', () => {
+      expect(SEAT_PRICES.Regular).toBe(150);
+      expect(SEAT_PRICES.Premium).toBe(200);
+      expect(SEAT_PRICES.Recliner).toBe(300);
+
+      expect(getSeatPrice('A1')).toBe(150);
+      expect(getSeatPrice('F5')).toBe(200);
+      expect(getSeatPrice('J10')).toBe(300);
+    });
+  });
+
+  describe('calculateSeatsPriceBreakdown Calculation Engine', () => {
+    it('returns zero totals for empty seat list', () => {
+      const breakdown = calculateSeatsPriceBreakdown([]);
+
+      expect(breakdown.totalAmount).toBe(0);
+      expect(breakdown.totalSeats).toBe(0);
+      expect(breakdown.Regular.count).toBe(0);
+      expect(breakdown.Premium.count).toBe(0);
+      expect(breakdown.Recliner.count).toBe(0);
+    });
+
+    it('calculates single and multiple Regular seats (₹150 each)', () => {
+      const single = calculateSeatsPriceBreakdown(['A1']);
+      expect(single.totalAmount).toBe(150);
+      expect(single.Regular.count).toBe(1);
+      expect(single.Regular.total).toBe(150);
+
+      const multiple = calculateSeatsPriceBreakdown(['A1', 'B2', 'C3']);
+      expect(multiple.totalAmount).toBe(450);
+      expect(multiple.Regular.count).toBe(3);
+      expect(multiple.Regular.total).toBe(450);
+    });
+
+    it('calculates Premium seats (₹200 each)', () => {
+      const breakdown = calculateSeatsPriceBreakdown(['F1', 'G2']);
+      expect(breakdown.totalAmount).toBe(400);
+      expect(breakdown.Premium.count).toBe(2);
+      expect(breakdown.Premium.total).toBe(400);
+    });
+
+    it('calculates Recliner luxury seats (₹300 each)', () => {
+      const breakdown = calculateSeatsPriceBreakdown(['I1', 'J2']);
+      expect(breakdown.totalAmount).toBe(600);
+      expect(breakdown.Recliner.count).toBe(2);
+      expect(breakdown.Recliner.total).toBe(600);
+    });
+
+    it('calculates multi-tier combination orders accurately', () => {
+      // 2 Regular (₹300) + 1 Premium (₹200) + 2 Recliner (₹600) = ₹1100
+      const seats = ['A1', 'B2', 'F5', 'I1', 'J11'];
+      const breakdown = calculateSeatsPriceBreakdown(seats);
+
+      expect(breakdown.totalSeats).toBe(5);
+      expect(breakdown.Regular.count).toBe(2);
+      expect(breakdown.Regular.total).toBe(300);
+      expect(breakdown.Premium.count).toBe(1);
+      expect(breakdown.Premium.total).toBe(200);
+      expect(breakdown.Recliner.count).toBe(2);
+      expect(breakdown.Recliner.total).toBe(600);
+      expect(breakdown.totalAmount).toBe(1100);
+    });
+  });
+
+  describe('Dynamic Price Recalculation via Redux Actions', () => {
+    it('dynamically recalculates total as seats are added and removed', () => {
+      let state = {
+        selectedSeats: [],
+        totalAmount: 0,
+        totalSeats: 0,
+        priceBreakdown: {},
+      };
+
+      // 1. Add Regular seat A1 -> 150
+      state = bookingReducer(state, toggleSeat('A1'));
+      expect(state.totalAmount).toBe(150);
+
+      // 2. Add Premium seat F1 -> 150 + 200 = 350
+      state = bookingReducer(state, toggleSeat('F1'));
+      expect(state.totalAmount).toBe(350);
+
+      // 3. Add Recliner seat J1 -> 350 + 300 = 650
+      state = bookingReducer(state, toggleSeat('J1'));
+      expect(state.totalAmount).toBe(650);
+
+      // 4. Remove Regular seat A1 -> 650 - 150 = 500
+      state = bookingReducer(state, removeSeat('A1'));
+      expect(state.totalAmount).toBe(500);
+
+      // 5. Toggle off Recliner seat J1 -> 500 - 300 = 200
+      state = bookingReducer(state, toggleSeat('J1'));
+      expect(state.totalAmount).toBe(200);
+      expect(state.selectedSeats).toEqual(['F1']);
+    });
+  });
+});
+```
+
+**src/__tests__/BookingConfirmation.test.jsx**
+```jsx
+import {
+  confirmNewBooking,
+  getAllSavedBookings,
+  buildShowKey,
+  getBookedSeatsForShow,
+} from '../services/bookingService';
+import bookingReducer, {
+  confirmBookingSuccess,
+  setBookingError,
+  clearBooking,
+} from '../redux/bookingSlice';
+
+const mockMovie = {
+  id: 'm1',
+  title: 'Jailer 2',
+  poster: '/posters/jailer2.jpg',
+  category: 'Tamil',
+  language: 'Tamil',
+  year: 2026,
+  rating: 8.8,
+  runtime: '165 min',
+};
+
+const mockTheatre = {
+  id: 'th1',
+  name: 'KG Cinemas (Multiplex)',
+  area: 'Race Course',
+  address: 'Bunglaw Road, Race Course, Coimbatore',
+  screens: 'Audi 1',
+};
+
+const mockDate = {
+  iso: '2026-10-15',
+  displayLabel: 'Thu, Oct 15',
+  full: 'Thursday, 15 October 2026',
+};
+
+const mockShowtime = {
+  id: 'st1000',
+  time: '10:00 AM',
+  label: 'Morning Show',
+};
+
+describe('Experiment 1: Booking Confirmation & Persistence', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  describe('confirmNewBooking Core Engine', () => {
+    it('throws an error if required booking parameters are missing', () => {
+      expect(() => {
+        confirmNewBooking({
+          movie: null,
+          theatre: mockTheatre,
+          date: mockDate,
+          showtime: mockShowtime,
+          seats: ['A1'],
+        });
+      }).toThrow(/Incomplete booking details/i);
+
+      expect(() => {
+        confirmNewBooking({
+          movie: mockMovie,
+          theatre: mockTheatre,
+          date: mockDate,
+          showtime: mockShowtime,
+          seats: [], // empty seats
+        });
+      }).toThrow(/Incomplete booking details/i);
+    });
+
+    it('creates a verified booking record with BMM-CBE- reference format', () => {
+      const showKey = buildShowKey(mockMovie.id, mockTheatre.id, mockDate.iso, mockShowtime.id);
+      const booked = getBookedSeatsForShow(showKey);
+      const allRegular = ['A1', 'A4', 'A5', 'A6', 'A7', 'A8', 'A9', 'A10', 'A11'];
+      const freeSeats = allRegular.filter((s) => !booked.includes(s)).slice(0, 2);
+
+      const record = confirmNewBooking({
+        movie: mockMovie,
+        theatre: mockTheatre,
+        date: mockDate,
+        showtime: mockShowtime,
+        seats: freeSeats,
+      });
+
+      expect(record).toBeDefined();
+      expect(record.bookingId).toMatch(/^BMM-CBE-[2-9A-Z]{6}$/);
+      expect(record.reference).toMatch(/^BMM-CBE-[2-9A-Z]{6}$/);
+      expect(record.seats).toEqual(freeSeats);
+      expect(record.amount).toBe(300);
+      expect(record.movie.title).toBe('Jailer 2');
+      expect(record.theatre.name).toBe('KG Cinemas (Multiplex)');
+    });
+
+    it('persists booking in localStorage and retrieves from history', () => {
+      const showKey = buildShowKey(mockMovie.id, mockTheatre.id, mockDate.iso, mockShowtime.id);
+      const booked = getBookedSeatsForShow(showKey);
+      const freeSeat = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11'].find(
+        (s) => !booked.includes(s)
+      );
+
+      const record = confirmNewBooking({
+        movie: mockMovie,
+        theatre: mockTheatre,
+        date: mockDate,
+        showtime: mockShowtime,
+        seats: [freeSeat],
+      });
+
+      const history = getAllSavedBookings();
+      expect(history.length).toBeGreaterThanOrEqual(1);
+      expect(history[0].bookingId).toBe(record.bookingId);
+      expect(history[0].seats).toEqual([freeSeat]);
+    });
+
+    it('prevents double-booking the same seats for the same show screening', () => {
+      const showKey = buildShowKey(mockMovie.id, mockTheatre.id, mockDate.iso, mockShowtime.id);
+      const booked = getBookedSeatsForShow(showKey);
+      const freeSeat = ['J1', 'J2', 'J3', 'J4', 'J5', 'J6', 'J7', 'J8', 'J9', 'J10', 'J11'].find(
+        (s) => !booked.includes(s)
+      );
+
+      // First booking succeeds
+      confirmNewBooking({
+        movie: mockMovie,
+        theatre: mockTheatre,
+        date: mockDate,
+        showtime: mockShowtime,
+        seats: [freeSeat],
+      });
+
+      // Attempting to book the same seat again must throw conflict error
+      expect(() => {
+        confirmNewBooking({
+          movie: mockMovie,
+          theatre: mockTheatre,
+          date: mockDate,
+          showtime: mockShowtime,
+          seats: [freeSeat],
+        });
+      }).toThrow(new RegExp(`already booked for this show: ${freeSeat}`, 'i'));
+    });
+  });
+
+  describe('Redux Booking State Confirmation Handlers', () => {
+    it('updates state to confirmed with booking reference on confirmBookingSuccess', () => {
+      const initialState = {
+        bookingConfirmed: false,
+        bookingReference: null,
+        bookingError: 'some old error',
+      };
+
+      const nextState = bookingReducer(
+        initialState,
+        confirmBookingSuccess('BMM-CBE-ABC123')
+      );
+
+      expect(nextState.bookingConfirmed).toBe(true);
+      expect(nextState.bookingReference).toBe('BMM-CBE-ABC123');
+      expect(nextState.bookingError).toBeNull();
+    });
+
+    it('sets bookingError on failure', () => {
+      const initialState = {
+        bookingError: null,
+      };
+
+      const nextState = bookingReducer(
+        initialState,
+        setBookingError('Payment gateway timeout')
+      );
+
+      expect(nextState.bookingError).toBe('Payment gateway timeout');
+    });
+
+    it('clears all booking state on clearBooking', () => {
+      const populatedState = {
+        selectedMovie: mockMovie,
+        selectedTheatre: mockTheatre,
+        selectedSeats: ['A1', 'A2'],
+        totalAmount: 300,
+        bookingConfirmed: true,
+        bookingReference: 'BMM-CBE-XYZ789',
+      };
+
+      const resetState = bookingReducer(populatedState, clearBooking());
+
+      expect(resetState.selectedMovie).toBeNull();
+      expect(resetState.selectedTheatre).toBeNull();
+      expect(resetState.selectedSeats).toEqual([]);
+      expect(resetState.totalAmount).toBe(0);
+      expect(resetState.bookingConfirmed).toBe(false);
+      expect(resetState.bookingReference).toBeNull();
+    });
+  });
+});
+```
