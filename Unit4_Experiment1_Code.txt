@@ -1,0 +1,3542 @@
+================================================================================
+   UNIT 4 - EXPERIMENT 1 : SOURCE CODE ARCHIVE
+   BookMyMovie - 2026 Cinema Season & Coimbatore Multiplex Seat Booking System
+   Stack: React 19 + React Router 7 + TMDB REST API + Vite + JavaScript (ES6+)
+================================================================================
+
+TABLE OF CONTENTS:
+------------------
+DATA & SERVICES:
+  1. src/services/movieApi.js         - TMDB 2026 REST API integration & data normalization
+  2. src/data/theatres.js             - 10 Verified Coimbatore Multiplexes & area dataset
+  3. src/data/showtimes.js            - 8-Day advance date generator & showtime engine
+  4. src/data/seatLayout.js           - 110-Seat auditorium geometry & 3-tier pricing
+  5. src/services/bookingService.js   - Deterministic seat hash engine & booking persistence
+
+CONTEXT & STATE MANAGEMENT:
+  6. src/context/BookingContext.jsx   - Central booking state, 110-seat availability & pricing
+  7. src/context/AuthContext.jsx      - Authentication state (admin / 1234, session, storage)
+
+COMPONENTS:
+  8. src/components/TheatreList.jsx   - Coimbatore theatre selection with area pills & search
+  9. src/components/ShowTiming.jsx    - 8-Day advance date selector & dynamic showtime buttons
+ 10. src/components/SeatSelection.jsx - Interactive 110-seat screen, walking aisle & legend
+ 11. src/components/BookingSummary.jsx- Itemized price breakdown & admission pass confirmation
+ 12. src/components/MovieCard.jsx     - 2026 movie card with ratings & upcoming badge
+ 13. src/components/MovieList.jsx     - Movies collection with loading, error & empty states
+ 14. src/components/SearchBar.jsx     - Debounced title search bar with clear button
+ 15. src/components/CategoryFilter.jsx- Industry switcher (All Movies, Tamil, Hollywood)
+ 16. src/components/GenreFilter.jsx   - Genre filter pill selector
+ 17. src/components/BookMyMovieIcon.jsx- Custom cinema ticket SVG brand icon
+ 18. src/components/Header.jsx        - Navbar with brand logo, links & authentication
+
+PAGES & ROOT APPLICATION:
+ 19. src/pages/MoviesPage.jsx         - 2026 Movie catalog with live API status & filters
+ 20. src/pages/MovieDetailsPage.jsx   - Dynamic movie overview, cast, crew & ratings
+ 21. src/pages/BookingPage.jsx        - 5-Step interactive seat and show booking flow
+ 22. src/pages/SummaryPage.jsx        - Digital admission pass & "My Bookings" history log
+ 23. src/App.jsx                      - Router configuration & top-level application layout
+
+
+================================================================================
+FILE 1: src/services/movieApi.js
+================================================================================
+
+import { FALLBACK_MOVIES_2026, getFallbackMovieById } from '../data/fallbackMovies.js';
+
+// TMDB API Configuration
+const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
+const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
+const TMDB_BACKDROP_BASE = 'https://image.tmdb.org/t/p/original';
+
+// Check for client-side Vite environment variable or global environment
+const TMDB_API_KEY =
+  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_TMDB_API_KEY) ||
+  (typeof globalThis !== 'undefined' && globalThis.process?.env?.VITE_TMDB_API_KEY) ||
+  '';
+
+// TMDB Genre ID to Name Mapping
+const TMDB_GENRES = {
+  28: 'Action',
+  12: 'Adventure',
+  16: 'Animation',
+  35: 'Comedy',
+  80: 'Crime',
+  99: 'Documentary',
+  18: 'Drama',
+  10751: 'Family',
+  14: 'Fantasy',
+  36: 'History',
+  27: 'Horror',
+  10402: 'Music',
+  9648: 'Mystery',
+  10749: 'Romance',
+  878: 'Sci-Fi',
+  10770: 'TV Movie',
+  53: 'Thriller',
+  10752: 'War',
+  37: 'Western',
+};
+
+export function isLiveApiConfigured() {
+  return Boolean(
+    TMDB_API_KEY &&
+    TMDB_API_KEY.trim() !== '' &&
+    TMDB_API_KEY !== 'your_tmdb_api_key_here'
+  );
+}
+
+function normalizeTmdbMovie(movie) {
+  if (!movie) return null;
+
+  let genresList = [];
+  if (Array.isArray(movie.genres) && movie.genres.length > 0) {
+    genresList = movie.genres
+      .map((g) => (typeof g === 'object' && g ? g.name : g))
+      .filter(Boolean);
+  } else if (Array.isArray(movie.genre_ids) && movie.genre_ids.length > 0) {
+    genresList = movie.genre_ids.map((id) => TMDB_GENRES[id] || 'General').filter(Boolean);
+  }
+
+  if (genresList.length === 0) {
+    genresList = ['Cinema'];
+  }
+
+  const origLang = movie.original_language || '';
+  const isTamil = origLang.toLowerCase() === 'ta';
+  const isEnglish = origLang.toLowerCase() === 'en';
+
+  const category = isTamil ? 'Tamil' : isEnglish ? 'Hollywood' : 'International';
+  const language = isTamil ? 'Tamil' : isEnglish ? 'English' : origLang.toUpperCase();
+
+  const year = movie.release_date
+    ? new Date(movie.release_date).getFullYear()
+    : 2026;
+
+  const isUpcoming = movie.release_date
+    ? new Date(movie.release_date) > new Date()
+    : true;
+
+  const poster = movie.poster_path
+    ? `${TMDB_IMAGE_BASE}${movie.poster_path}`
+    : '/posters/doomsday.jpg';
+
+  const backdrop = movie.backdrop_path
+    ? `${TMDB_BACKDROP_BASE}${movie.backdrop_path}`
+    : poster;
+
+  const rating =
+    movie.vote_average !== undefined && movie.vote_average !== null && movie.vote_average > 0
+      ? Number(movie.vote_average.toFixed(1))
+      : 8.5;
+
+  let releaseDateFormatted = movie.release_date || '2026';
+  if (movie.release_date) {
+    try {
+      const d = new Date(movie.release_date);
+      if (!isNaN(d)) {
+        releaseDateFormatted = d.toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+        });
+      }
+    } catch {
+      releaseDateFormatted = movie.release_date;
+    }
+  }
+
+  let cast = 'All-Star Ensemble Cast';
+  let director = 'Acclaimed Director';
+
+  if (movie.credits) {
+    if (Array.isArray(movie.credits.cast) && movie.credits.cast.length > 0) {
+      cast = movie.credits.cast.slice(0, 4).map((c) => c.name).join(', ');
+    }
+    if (Array.isArray(movie.credits.crew)) {
+      const dirObj = movie.credits.crew.find((c) => c.job === 'Director');
+      if (dirObj) director = dirObj.name;
+    }
+  }
+
+  return {
+    id: String(movie.id),
+    apiId: movie.id,
+    source: 'tmdb-api',
+    title: movie.title || movie.original_title || 'Untitled',
+    category,
+    language,
+    genre: genresList.join(' / '),
+    genres: genresList,
+    rating,
+    year,
+    releaseDate: movie.release_date || '2026',
+    releaseDateFormatted,
+    status: isUpcoming ? 'Upcoming' : 'Released',
+    isUpcoming,
+    runtime: movie.runtime ? `${movie.runtime} min` : '150 min',
+    description: movie.overview || '2026 cinema presentation. No synopsis provided.',
+    poster,
+    backdrop,
+    cast,
+    director,
+  };
+}
+
+function filterFallbackDataset({ search = '', category = 'All Movies', genre = 'All Genres' }) {
+  let list = [...FALLBACK_MOVIES_2026];
+
+  if (category && category !== 'All' && category !== 'All Movies') {
+    list = list.filter((m) => m.category.toLowerCase() === category.toLowerCase());
+  }
+
+  if (genre && genre !== 'All' && genre !== 'All Genres') {
+    const targetGenre = genre.toLowerCase();
+    list = list.filter(
+      (m) =>
+        m.genres.some((g) => g.toLowerCase() === targetGenre) ||
+        m.genre.toLowerCase().includes(targetGenre)
+    );
+  }
+
+  if (search && search.trim() !== '') {
+    const q = search.trim().toLowerCase();
+    list = list.filter((m) => m.title.toLowerCase().includes(q));
+  }
+
+  return list;
+}
+
+export async function fetchMovies({
+  search = '',
+  query = '',
+  category = 'All Movies',
+  genre = 'All Genres',
+  page = 1,
+  signal,
+} = {}) {
+  const searchTerm = search || query || '';
+  const trimmedSearch = searchTerm.trim();
+  const hasKey = isLiveApiConfigured();
+
+  if (!hasKey) {
+    const fallbackResults = filterFallbackDataset({
+      search: trimmedSearch,
+      category,
+      genre,
+    });
+    return {
+      movies: fallbackResults,
+      isLiveApi: false,
+      total: fallbackResults.length,
+      page: 1,
+      totalPages: 1,
+      source: 'local-fallback-2026',
+    };
+  }
+
+  try {
+    let rawMovies = [];
+    let totalPages = 1;
+
+    if (trimmedSearch) {
+      const url = `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(
+        trimmedSearch
+      )}&primary_release_year=2026&include_adult=false&page=${page}`;
+      const response = await fetch(url, { signal });
+
+      if (!response.ok) {
+        throw new Error(`TMDB Search error: HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      rawMovies = Array.isArray(data.results) ? data.results : [];
+      totalPages = data.total_pages || 1;
+    } else {
+      let endpoint = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&primary_release_year=2026&sort_by=popularity.desc&page=${page}`;
+
+      if (category === 'Tamil') {
+        endpoint = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&primary_release_year=2026&with_original_language=ta&sort_by=popularity.desc&page=${page}`;
+      } else if (category === 'Hollywood') {
+        endpoint = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&primary_release_year=2026&with_original_language=en&sort_by=popularity.desc&page=${page}`;
+      }
+
+      const response = await fetch(endpoint, { signal });
+
+      if (!response.ok) {
+        throw new Error(`TMDB Discover error: HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      rawMovies = Array.isArray(data.results) ? data.results : [];
+      totalPages = data.total_pages || 1;
+    }
+
+    let movies = rawMovies.map(normalizeTmdbMovie).filter(Boolean);
+
+    if (category && category !== 'All' && category !== 'All Movies') {
+      movies = movies.filter((m) => m.category.toLowerCase() === category.toLowerCase());
+    }
+
+    if (genre && genre !== 'All' && genre !== 'All Genres') {
+      const targetGenre = genre.toLowerCase();
+      movies = movies.filter(
+        (m) =>
+          m.genres.some((g) => g.toLowerCase() === targetGenre) ||
+          m.genre.toLowerCase().includes(targetGenre)
+      );
+    }
+
+    return {
+      movies,
+      isLiveApi: true,
+      total: movies.length,
+      page,
+      totalPages,
+      source: 'tmdb-api',
+    };
+  } catch (error) {
+    if (error.name === 'AbortError') throw error;
+
+    console.warn('TMDB API fetch failed. Switching to local 2026 fallback dataset:', error.message);
+
+    const fallbackResults = filterFallbackDataset({
+      search: trimmedSearch,
+      category,
+      genre,
+    });
+
+    return {
+      movies: fallbackResults,
+      isLiveApi: false,
+      total: fallbackResults.length,
+      page: 1,
+      totalPages: 1,
+      source: 'local-fallback-2026',
+      fallbackReason: error.message,
+    };
+  }
+}
+
+export async function searchMovies(query, options = {}) {
+  return fetchMovies({ search: query, ...options });
+}
+
+export async function getPopularMovies(options = {}) {
+  return fetchMovies({ category: 'All Movies', ...options });
+}
+
+export async function getTamilMovies(options = {}) {
+  return fetchMovies({ category: 'Tamil', ...options });
+}
+
+export async function getHollywoodMovies(options = {}) {
+  return fetchMovies({ category: 'Hollywood', ...options });
+}
+
+export async function getMovieById(id, { signal } = {}) {
+  if (!id) {
+    throw new Error('Movie ID is required');
+  }
+
+  const strId = String(id).trim();
+
+  if (strId.startsWith('fb-') || strId.startsWith('bmm-')) {
+    const fallbackMatch = getFallbackMovieById(strId);
+    if (fallbackMatch) return fallbackMatch;
+  }
+
+  const exactLocalMatch = FALLBACK_MOVIES_2026.find((m) => String(m.id) === strId);
+  if (exactLocalMatch) return exactLocalMatch;
+
+  const isNumeric = /^\d+$/.test(strId);
+  const numVal = parseInt(strId, 10);
+
+  if (isNumeric && numVal >= 1 && numVal <= FALLBACK_MOVIES_2026.length) {
+    if (!isLiveApiConfigured() || numVal <= 15) {
+      const indexedMovie = FALLBACK_MOVIES_2026[numVal - 1];
+      if (indexedMovie) return indexedMovie;
+    }
+  }
+
+  if (isNumeric && isLiveApiConfigured()) {
+    try {
+      const url = `${TMDB_BASE_URL}/movie/${strId}?api_key=${TMDB_API_KEY}&append_to_response=credits`;
+      const response = await fetch(url, { signal });
+
+      if (response.ok) {
+        const movieData = await response.json();
+        return normalizeTmdbMovie(movieData);
+      }
+    } catch (error) {
+      if (error.name === 'AbortError') throw error;
+    }
+  }
+
+  const cleanQuery = strId.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (cleanQuery) {
+    const slugMatch = FALLBACK_MOVIES_2026.find((m) => {
+      const cleanTitle = m.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const cleanId = String(m.id).toLowerCase().replace(/[^a-z0-9]/g, '');
+      return (
+        cleanTitle === cleanQuery ||
+        cleanTitle.includes(cleanQuery) ||
+        cleanQuery.includes(cleanTitle) ||
+        cleanId.includes(cleanQuery)
+      );
+    });
+
+    if (slugMatch) return slugMatch;
+  }
+
+  if (FALLBACK_MOVIES_2026.length > 0) {
+    return FALLBACK_MOVIES_2026[0];
+  }
+
+  throw new Error(`Movie with identifier "${id}" was not found.`);
+}
+
+export function getAvailableCategories() {
+  return ['All Movies', 'Tamil', 'Hollywood'];
+}
+
+export function getStandardGenres() {
+  return [
+    'All Genres',
+    'Action',
+    'Adventure',
+    'Crime',
+    'Drama',
+    'Sci-Fi',
+    'Thriller',
+    'Horror',
+    'Comedy',
+    'Animation',
+    'Family',
+    'Mythology',
+  ];
+}
+
+export async function getFeaturedMovie({ signal } = {}) {
+  try {
+    const { movies } = await fetchMovies({ signal });
+    if (movies && movies.length > 0) {
+      return movies[0];
+    }
+  } catch (err) {
+    if (err.name === 'AbortError') throw err;
+  }
+  return FALLBACK_MOVIES_2026[0];
+}
+
+
+================================================================================
+FILE 2: src/data/theatres.js
+================================================================================
+
+export const COIMBATORE_THEATRES = [
+  {
+    id: 'cbe-th-01',
+    name: 'INOX Prozone Mall',
+    area: 'Sathy Road',
+    address: 'Prozone Mall, SF 201, Sathy Main Road, Sivanandhapuram, Coimbatore, Tamil Nadu 641035',
+    screens: '9 Screens (Insignia & Club)',
+    formats: ['Dolby Atmos', '4K Laser Projection', 'Insignia Luxury', 'RealD 3D'],
+    city: 'Coimbatore',
+    pincode: '641035',
+    landmark: 'Near Saravanampatti IT Corridor',
+  },
+  {
+    id: 'cbe-th-02',
+    name: 'Broadway Cinemas',
+    area: 'Avinashi Road',
+    address: 'KMCH Campus, Avinashi Road, Civil Aerodrome Post, Coimbatore, Tamil Nadu 641014',
+    screens: '9 Screens (EPIQ & Gold)',
+    formats: ['EPIQ Premium Large Format', 'Barco Laser 4K', 'Dolby Atmos 64 Channel', 'Gold Class'],
+    city: 'Coimbatore',
+    pincode: '641014',
+    landmark: 'Opposite KMCH Hospital',
+  },
+  {
+    id: 'cbe-th-03',
+    name: 'KG Cinemas',
+    area: 'Race Course',
+    address: '3, Bungalow Road, Race Course, Gopalapuram, Coimbatore, Tamil Nadu 641018',
+    screens: '4 Screens (Big Screen)',
+    formats: ['RGB Laser 4K', 'Dolby Atmos', 'Dual Laser 3D'],
+    city: 'Coimbatore',
+    pincode: '641018',
+    landmark: 'Near Old All India Radio Station',
+  },
+  {
+    id: 'cbe-th-04',
+    name: 'Cinepolis Fun Republic Mall',
+    area: 'Peelamedu',
+    address: 'Fun Republic Mall, 4th Floor, Avinashi Road, Peelamedu, Coimbatore, Tamil Nadu 641004',
+    screens: '5 Screens (VIP & Club)',
+    formats: ['VIP Recliner Audi', 'RealD 3D', 'Dolby Digital 7.1', 'Laser Projection'],
+    city: 'Coimbatore',
+    pincode: '641004',
+    landmark: 'Near PSG Tech Campus',
+  },
+  {
+    id: 'cbe-th-05',
+    name: 'PVR Brookefields Mall',
+    area: 'RS Puram',
+    address: 'Brookefields Mall, 67-71, Dr Krishnasamy Mudaliar Rd, Coimbatore, Tamil Nadu 641001',
+    screens: '6 Screens',
+    formats: ['PVR Laser 4K', 'Dolby Atmos', 'Next-Gen 3D'],
+    city: 'Coimbatore',
+    pincode: '641001',
+    landmark: 'City Center Brookefields Plaza',
+  },
+  {
+    id: 'cbe-th-06',
+    name: 'Sri Sakthi Cinemas',
+    area: 'Avinashi Road',
+    address: 'Avinashi Road, Thirumuruganpoondi, Coimbatore-Tiruppur Corridor, Tamil Nadu 641652',
+    screens: '3 Screens (Sakthi, Ganga, Yamuna)',
+    formats: ['RGB Laser 4K', 'Dolby Atmos', 'Qube Dual Cinema'],
+    city: 'Coimbatore',
+    pincode: '641652',
+    landmark: 'Thirumuruganpoondi Bypass',
+  },
+  {
+    id: 'cbe-th-07',
+    name: 'Karpagam Cinemas',
+    area: 'Gandhipuram',
+    address: '100 Feet Road, 7th Street Corner, Gandhipuram, Coimbatore, Tamil Nadu 641012',
+    screens: '2 Screens (Karpagam 4K)',
+    formats: ['Barco 4K Laser', 'Dolby Atmos Surround', 'RGB 3D'],
+    city: 'Coimbatore',
+    pincode: '641012',
+    landmark: 'Gandhipuram Central Bus Stand Area',
+  },
+  {
+    id: 'cbe-th-08',
+    name: 'Archana Darshana Cinemas',
+    area: 'Town Hall',
+    address: 'Oppanakara Street, Near Clock Tower, Town Hall, Coimbatore, Tamil Nadu 641001',
+    screens: '2 Screens (Archana & Darshana)',
+    formats: ['Laser 4K Projection', 'Dolby Atmos', 'Acoustic Soundstage'],
+    city: 'Coimbatore',
+    pincode: '641001',
+    landmark: 'Near Town Hall Historic Clock Tower',
+  },
+  {
+    id: 'cbe-th-09',
+    name: 'Sree Annapoorna Cinemas',
+    area: 'RS Puram',
+    address: '75, East Arokiasamy Road, R.S. Puram, Coimbatore, Tamil Nadu 641002',
+    screens: '2 Screens (Annapoorna A/C)',
+    formats: ['Qube 4K Projection', 'Dolby 7.1 Surround', 'Plush Pushback'],
+    city: 'Coimbatore',
+    pincode: '641002',
+    landmark: 'Near DB Road Shopping District',
+  },
+  {
+    id: 'cbe-th-10',
+    name: 'Maharaja Multiplex',
+    area: 'Neelambur',
+    address: 'L&T Bypass Junction, Avinashi Road, Neelambur, Coimbatore, Tamil Nadu 641062',
+    screens: '3 Screens',
+    formats: ['Multiplex Curved Screen', 'Dolby Atmos 7.1', 'Laser 4K'],
+    city: 'Coimbatore',
+    pincode: '641062',
+    landmark: 'Neelambur L&T Toll Bypass Junction',
+  },
+];
+
+export const THEATRES = COIMBATORE_THEATRES;
+
+export function getAllTheatres() {
+  return [...COIMBATORE_THEATRES];
+}
+
+export function getTheatreById(id) {
+  if (!id) return null;
+  const strId = String(id).toLowerCase();
+  return (
+    COIMBATORE_THEATRES.find(
+      (t) => String(t.id).toLowerCase() === strId || String(t.id).includes(strId)
+    ) || null
+  );
+}
+
+export function getCoimbatoreAreas() {
+  const areas = ['All Areas', ...new Set(COIMBATORE_THEATRES.map((t) => t.area))];
+  return areas;
+}
+
+
+================================================================================
+FILE 3: src/data/showtimes.js
+================================================================================
+
+export const STANDARD_SHOWTIMES = [
+  { id: 'st-1000', time: '10:00 AM', label: 'Morning Show',    period: 'morning', hour24: 10, minute: 0 },
+  { id: 'st-1330', time: '1:30 PM',  label: 'Matinee Show',    period: 'afternoon', hour24: 13, minute: 30 },
+  { id: 'st-1630', time: '4:30 PM',  label: 'Evening Show',    period: 'evening', hour24: 16, minute: 30 },
+  { id: 'st-1930', time: '7:30 PM',  label: 'Night Show',      period: 'night', hour24: 19, minute: 30 },
+  { id: 'st-2215', time: '10:15 PM', label: 'Late Night Show', period: 'late', hour24: 22, minute: 15 },
+];
+
+export function getAvailableBookingDates(daysAhead = 7) {
+  const dates = [];
+  const now = new Date();
+  const dayNamesShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const monthNamesShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  for (let i = 0; i <= daysAhead; i++) {
+    const d = new Date(now);
+    d.setDate(now.getDate() + i);
+
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const iso = `${year}-${month}-${day}`;
+
+    const dayOfWeek = dayNamesShort[d.getDay()];
+    const dateNum = d.getDate();
+    const monthStr = monthNamesShort[d.getMonth()];
+    const displayLabel = `${dayOfWeek}, ${dateNum} ${monthStr}`;
+
+    dates.push({
+      id: `date-${iso}`,
+      iso,
+      dayNum: dateNum,
+      dayName: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : dayOfWeek,
+      dayOfWeek,
+      monthStr,
+      year,
+      displayLabel,
+      full: d.toLocaleDateString('en-IN', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      }),
+      isToday: i === 0,
+    });
+  }
+
+  return dates;
+}
+
+export function isShowtimePast(dateIso, showtime) {
+  if (!dateIso || !showtime) return false;
+
+  const now = new Date();
+  const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
+    now.getDate()
+  ).padStart(2, '0')}`;
+
+  if (dateIso > todayIso) {
+    return false;
+  }
+
+  if (dateIso < todayIso) {
+    return true;
+  }
+
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+
+  if (showtime.hour24 < currentHour) return true;
+  if (showtime.hour24 === currentHour && showtime.minute <= currentMinute) return true;
+
+  return false;
+}
+
+export function getShowtimesForTheatre(theatreId, dateIso) {
+  return STANDARD_SHOWTIMES.map((st) => {
+    const isPast = isShowtimePast(dateIso, st);
+    return {
+      ...st,
+      isAvailable: !isPast,
+      theatreId: theatreId || 'default',
+      dateIso: dateIso || '',
+    };
+  });
+}
+
+
+================================================================================
+FILE 4: src/data/seatLayout.js
+================================================================================
+
+export const SEAT_PRICES = {
+  Regular: 150,
+  Premium: 200,
+  Recliner: 300,
+};
+
+export const ROW_CONFIG = [
+  { row: 'A', category: 'Regular',  price: SEAT_PRICES.Regular,  seatsCount: 11 },
+  { row: 'B', category: 'Regular',  price: SEAT_PRICES.Regular,  seatsCount: 11 },
+  { row: 'C', category: 'Regular',  price: SEAT_PRICES.Regular,  seatsCount: 11 },
+  { row: 'D', category: 'Regular',  price: SEAT_PRICES.Regular,  seatsCount: 11 },
+  { row: 'E', category: 'Regular',  price: SEAT_PRICES.Regular,  seatsCount: 11 },
+  { row: 'F', category: 'Premium',  price: SEAT_PRICES.Premium,  seatsCount: 11 },
+  { row: 'G', category: 'Premium',  price: SEAT_PRICES.Premium,  seatsCount: 11 },
+  { row: 'H', category: 'Premium',  price: SEAT_PRICES.Premium,  seatsCount: 11 },
+  { row: 'I', category: 'Recliner', price: SEAT_PRICES.Recliner, seatsCount: 11 },
+  { row: 'J', category: 'Recliner', price: SEAT_PRICES.Recliner, seatsCount: 11 },
+];
+
+export const TOTAL_SEATS_PER_SCREEN = 110;
+
+export function generateScreenSeats() {
+  const allSeats = [];
+  ROW_CONFIG.forEach(({ row, category, price, seatsCount }) => {
+    for (let num = 1; num <= seatsCount; num++) {
+      allSeats.push({
+        id: `${row}${num}`,
+        row,
+        number: num,
+        category,
+        price,
+        isAisleLeft: num === 5,
+        isAisleRight: num === 6,
+      });
+    }
+  });
+  return allSeats;
+}
+
+export function getSeatCategory(seatId) {
+  if (!seatId) return 'Regular';
+  const row = String(seatId).trim().charAt(0).toUpperCase();
+  const found = ROW_CONFIG.find((r) => r.row === row);
+  return found ? found.category : 'Regular';
+}
+
+export function getSeatPrice(seatId) {
+  if (!seatId) return SEAT_PRICES.Regular;
+  const category = getSeatCategory(seatId);
+  return SEAT_PRICES[category] || SEAT_PRICES.Regular;
+}
+
+export function calculateSeatsPriceBreakdown(seatIds = []) {
+  const breakdown = {
+    Regular:  { count: 0, rate: SEAT_PRICES.Regular,  total: 0, seats: [] },
+    Premium:  { count: 0, rate: SEAT_PRICES.Premium,  total: 0, seats: [] },
+    Recliner: { count: 0, rate: SEAT_PRICES.Recliner, total: 0, seats: [] },
+    totalAmount: 0,
+    totalSeats: seatIds.length,
+  };
+
+  seatIds.forEach((seatId) => {
+    const category = getSeatCategory(seatId);
+    if (breakdown[category]) {
+      breakdown[category].count += 1;
+      breakdown[category].total += breakdown[category].rate;
+      breakdown[category].seats.push(seatId);
+      breakdown.totalAmount += breakdown[category].rate;
+    }
+  });
+
+  return breakdown;
+}
+
+
+================================================================================
+FILE 5: src/services/bookingService.js
+================================================================================
+
+import { ROW_CONFIG, calculateSeatsPriceBreakdown } from '../data/seatLayout.js';
+
+const STORAGE_KEY_CONFIRMED = 'bmm_confirmed_show_seats';
+const STORAGE_KEY_BOOKINGS = 'bmm_my_bookings_list';
+const STORAGE_KEY_LEGACY = 'bm_last_booking';
+
+export function buildShowKey(movieId, theatreId, dateIso, showtimeId) {
+  const m = movieId ? String(movieId).replace(/[^a-zA-Z0-9]/g, '') : 'anyMovie';
+  const t = theatreId ? String(theatreId).replace(/[^a-zA-Z0-9]/g, '') : 'anyTheatre';
+  const d = dateIso ? String(dateIso).replace(/[^a-zA-Z0-9]/g, '') : 'today';
+  const s = showtimeId ? String(showtimeId).replace(/[^a-zA-Z0-9]/g, '') : 'st1000';
+  return `${m}_${t}_${d}_${s}`;
+}
+
+function hashString(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+export function getInitialPreBookedSeats(showKey) {
+  const seed = hashString(showKey || 'default_cbe_show');
+  const bookedSet = new Set();
+  const countToBook = 22 + (seed % 12);
+
+  let currentHash = seed;
+  let attempts = 0;
+
+  while (bookedSet.size < countToBook && attempts < 200) {
+    attempts++;
+    currentHash = (currentHash * 9301 + 49297) % 233280;
+
+    const rowIndex = currentHash % ROW_CONFIG.length;
+    const rowObj = ROW_CONFIG[rowIndex];
+
+    currentHash = (currentHash * 9301 + 49297) % 233280;
+    const seatNum = 1 + (currentHash % rowObj.seatsCount);
+
+    const seatId = `${rowObj.row}${seatNum}`;
+    bookedSet.add(seatId);
+  }
+
+  if (bookedSet.size < 20) {
+    ['A3', 'A4', 'B2', 'B5', 'C4', 'D1', 'D7', 'E3', 'F2', 'F6', 'G5', 'H1', 'I4', 'J8'].forEach((s) =>
+      bookedSet.add(s)
+    );
+  }
+
+  return Array.from(bookedSet);
+}
+
+function getConfirmedBookingsMap() {
+  try {
+    if (typeof localStorage === 'undefined') return {};
+    const raw = localStorage.getItem(STORAGE_KEY_CONFIRMED);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveConfirmedBookingsMap(map) {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(STORAGE_KEY_CONFIRMED, JSON.stringify(map));
+  } catch (err) {
+    console.warn('Failed saving confirmed bookings to storage:', err);
+  }
+}
+
+export function getBookedSeatsForShow(showKey) {
+  const initial = getInitialPreBookedSeats(showKey);
+  const confirmedMap = getConfirmedBookingsMap();
+  const userBooked = confirmedMap[showKey] || [];
+
+  return Array.from(new Set([...initial, ...userBooked]));
+}
+
+export function generateBookingReference() {
+  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  let ref = 'BMM-CBE-';
+  for (let i = 0; i < 6; i++) {
+    ref += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return ref;
+}
+
+export function confirmNewBooking({
+  movie,
+  theatre,
+  date,
+  showtime,
+  seats = [],
+}) {
+  if (!movie || !theatre || !date || !showtime || seats.length === 0) {
+    throw new Error('Incomplete booking details. Movie, theatre, date, showtime, and seats are required.');
+  }
+
+  const showKey = buildShowKey(movie.id, theatre.id, date.iso, showtime.id);
+  const currentBooked = getBookedSeatsForShow(showKey);
+
+  const conflicts = seats.filter((s) => currentBooked.includes(s));
+  if (conflicts.length > 0) {
+    throw new Error(`The following seats are already booked for this show: ${conflicts.join(', ')}`);
+  }
+
+  const bookingReference = generateBookingReference();
+  const pricing = calculateSeatsPriceBreakdown(seats);
+
+  const bookingRecord = {
+    bookingId: bookingReference,
+    reference: bookingReference,
+    showKey,
+    movie: {
+      id: movie.id,
+      title: movie.title,
+      poster: movie.poster,
+      category: movie.category,
+      language: movie.language,
+      year: movie.year,
+      rating: movie.rating,
+      runtime: movie.runtime,
+    },
+    theatre: {
+      id: theatre.id,
+      name: theatre.name,
+      area: theatre.area,
+      address: theatre.address,
+      screens: theatre.screens,
+      formats: theatre.formats,
+    },
+    date: {
+      iso: date.iso,
+      displayLabel: date.displayLabel,
+      full: date.full,
+    },
+    showtime: {
+      id: showtime.id,
+      time: showtime.time,
+      label: showtime.label,
+    },
+    seats: [...seats].sort(),
+    totalSeats: seats.length,
+    pricing,
+    amount: pricing.totalAmount,
+    createdAt: new Date().toISOString(),
+    confirmedAt: new Date().toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    }),
+  };
+
+  const confirmedMap = getConfirmedBookingsMap();
+  const previousShowSeats = confirmedMap[showKey] || [];
+  confirmedMap[showKey] = Array.from(new Set([...previousShowSeats, ...seats]));
+  saveConfirmedBookingsMap(confirmedMap);
+
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const rawList = localStorage.getItem(STORAGE_KEY_BOOKINGS);
+      const existingList = rawList ? JSON.parse(rawList) : [];
+      const updatedList = [bookingRecord, ...existingList];
+      localStorage.setItem(STORAGE_KEY_BOOKINGS, JSON.stringify(updatedList));
+      localStorage.setItem(STORAGE_KEY_LEGACY, JSON.stringify(bookingRecord));
+    }
+  } catch (err) {
+    console.warn('Failed saving booking history record:', err);
+  }
+
+  return bookingRecord;
+}
+
+export function getAllSavedBookings() {
+  try {
+    if (typeof localStorage === 'undefined') return [];
+    const rawList = localStorage.getItem(STORAGE_KEY_BOOKINGS);
+    if (rawList) {
+      return JSON.parse(rawList);
+    }
+
+    const legacy = localStorage.getItem(STORAGE_KEY_LEGACY);
+    if (legacy) {
+      return [JSON.parse(legacy)];
+    }
+
+    return [];
+  } catch (err) {
+    console.warn('Error reading saved bookings:', err);
+    return [];
+  }
+}
+
+
+================================================================================
+FILE 6: src/context/BookingContext.jsx
+================================================================================
+
+import React, { createContext, useState, useMemo, useCallback } from 'react';
+import { COIMBATORE_THEATRES } from '../data/theatres.js';
+import { getAvailableBookingDates } from '../data/showtimes.js';
+import { calculateSeatsPriceBreakdown, SEAT_PRICES, ROW_CONFIG, TOTAL_SEATS_PER_SCREEN } from '../data/seatLayout.js';
+import {
+  buildShowKey,
+  getBookedSeatsForShow,
+  confirmNewBooking,
+  getAllSavedBookings,
+} from '../services/bookingService.js';
+import { FALLBACK_MOVIES_2026 } from '../data/fallbackMovies.js';
+
+const BookingContext = createContext();
+const MOVIES = FALLBACK_MOVIES_2026;
+
+function BookingProvider({ children }) {
+  const [searchQuery, setSearchQuery]           = useState('');
+  const [selectedMovie, setSelectedMovie]       = useState(null);
+  const [selectedTheatre, setSelectedTheatre]   = useState(null);
+
+  const availableDates = useMemo(() => getAvailableBookingDates(7), []);
+  const [selectedDate, setSelectedDate]         = useState(() => availableDates[0]);
+  const [selectedTime, setSelectedTime]         = useState(null);
+  const [selectedSeats, setSelectedSeats]       = useState([]);
+  const [bookingConfirmed, setBookingConfirmed] = useState(false);
+  const [activeBookingReference, setActiveBookingReference] = useState(null);
+  const [bookingError, setBookingError]         = useState(null);
+
+  const [theatreAreaFilter, setTheatreAreaFilter]   = useState('All Areas');
+  const [theatreSearchQuery, setTheatreSearchQuery] = useState('');
+  const [allBookings, setAllBookings] = useState(() => getAllSavedBookings());
+
+  const lastBooking = useMemo(() => {
+    return allBookings.length > 0 ? allBookings[0] : null;
+  }, [allBookings]);
+
+  const currentShowKey = useMemo(() => {
+    if (!selectedMovie || !selectedTheatre || !selectedDate || !selectedTime) {
+      return null;
+    }
+    return buildShowKey(selectedMovie.id, selectedTheatre.id, selectedDate.iso, selectedTime.id);
+  }, [selectedMovie, selectedTheatre, selectedDate, selectedTime]);
+
+  const bookedSeatsForCurrentShow = useMemo(() => {
+    if (!currentShowKey) return [];
+    return getBookedSeatsForShow(currentShowKey);
+  }, [currentShowKey, bookingConfirmed]);
+
+  const filteredMovies = useMemo(() => {
+    if (!searchQuery.trim()) return MOVIES;
+    const q = searchQuery.toLowerCase();
+    return MOVIES.filter((movie) =>
+      movie.title.toLowerCase().includes(q)
+    );
+  }, [searchQuery]);
+
+  const priceBreakdown = useMemo(() => {
+    return calculateSeatsPriceBreakdown(selectedSeats);
+  }, [selectedSeats]);
+
+  const totalAmount = priceBreakdown.totalAmount;
+
+  const handleSelectMovie = useCallback((movie) => {
+    setSelectedMovie(movie);
+    setSelectedTheatre(null);
+    setSelectedDate(availableDates[0]);
+    setSelectedTime(null);
+    setSelectedSeats([]);
+    setBookingConfirmed(false);
+    setActiveBookingReference(null);
+    setBookingError(null);
+  }, [availableDates]);
+
+  const handleSelectDate = useCallback((date) => {
+    setSelectedDate(date);
+    setSelectedTime(null);
+    setSelectedSeats([]);
+    setBookingConfirmed(false);
+    setActiveBookingReference(null);
+    setBookingError(null);
+  }, []);
+
+  const handleSelectTheatre = useCallback((theatre) => {
+    setSelectedTheatre(theatre);
+    setSelectedTime(null);
+    setSelectedSeats([]);
+    setBookingConfirmed(false);
+    setActiveBookingReference(null);
+    setBookingError(null);
+  }, []);
+
+  const handleSelectTime = useCallback((timing) => {
+    setSelectedTime(timing);
+    setSelectedSeats([]);
+    setBookingConfirmed(false);
+    setActiveBookingReference(null);
+    setBookingError(null);
+  }, []);
+
+  const handleToggleSeat = useCallback((seatId) => {
+    if (bookedSeatsForCurrentShow.includes(seatId)) {
+      return false;
+    }
+
+    setSelectedSeats((prevSeats) => {
+      if (prevSeats.includes(seatId)) {
+        return prevSeats.filter((s) => s !== seatId);
+      } else {
+        return [...prevSeats, seatId];
+      }
+    });
+
+    setBookingConfirmed(false);
+    setBookingError(null);
+    return true;
+  }, [bookedSeatsForCurrentShow]);
+
+  const handleSearchChange = useCallback((value) => {
+    setSearchQuery(value);
+  }, []);
+
+  const handleConfirmBooking = useCallback(() => {
+    setBookingError(null);
+
+    if (!selectedMovie || !selectedTheatre || !selectedDate || !selectedTime || selectedSeats.length === 0) {
+      setBookingError('Please complete all booking steps (Theatre, Date, Showtime, and at least 1 Seat).');
+      return false;
+    }
+
+    try {
+      const record = confirmNewBooking({
+        movie: selectedMovie,
+        theatre: selectedTheatre,
+        date: selectedDate,
+        showtime: selectedTime,
+        seats: selectedSeats,
+      });
+
+      setBookingConfirmed(true);
+      setActiveBookingReference(record.bookingId);
+      setAllBookings(getAllSavedBookings());
+      return true;
+    } catch (err) {
+      setBookingError(err.message || 'Unable to confirm booking. Please try again.');
+      return false;
+    }
+  }, [selectedMovie, selectedTheatre, selectedDate, selectedTime, selectedSeats]);
+
+  const handleResetBooking = useCallback(() => {
+    setSelectedMovie(null);
+    setSelectedTheatre(null);
+    setSelectedDate(availableDates[0]);
+    setSelectedTime(null);
+    setSelectedSeats([]);
+    setBookingConfirmed(false);
+    setActiveBookingReference(null);
+    setBookingError(null);
+  }, [availableDates]);
+
+  const contextValue = {
+    searchQuery,
+    selectedMovie,
+    selectedTheatre,
+    selectedDate,
+    selectedTime,
+    selectedSeats,
+    bookingConfirmed,
+    activeBookingReference,
+    bookingError,
+    lastBooking,
+    allBookings,
+    theatres: COIMBATORE_THEATRES,
+    theatreAreaFilter,
+    theatreSearchQuery,
+    availableDates,
+    currentShowKey,
+    bookedSeatsForCurrentShow,
+    filteredMovies,
+    priceBreakdown,
+    totalAmount,
+    seatPrices: SEAT_PRICES,
+    ticketPrice: SEAT_PRICES.Regular,
+    rowConfig: ROW_CONFIG,
+    totalSeatsPerScreen: TOTAL_SEATS_PER_SCREEN,
+    handleSearchChange,
+    handleSelectMovie,
+    handleSelectTheatre,
+    handleSelectDate,
+    handleSelectTime,
+    handleToggleSeat,
+    handleConfirmBooking,
+    handleResetBooking,
+    setTheatreAreaFilter,
+    setTheatreSearchQuery,
+  };
+
+  return (
+    <BookingContext.Provider value={contextValue}>
+      {children}
+    </BookingContext.Provider>
+  );
+}
+
+export { BookingContext, BookingProvider };
+
+
+================================================================================
+FILE 7: src/context/AuthContext.jsx
+================================================================================
+
+import React, { createContext, useState } from 'react';
+
+const AuthContext = createContext();
+
+const STORAGE_KEY_USERS    = 'bm_users';
+const STORAGE_KEY_AUTH_USER = 'auth_user';
+const STORAGE_KEY_AUTH_STATUS = 'auth_status';
+
+const ADMIN_USER = { username: 'admin', password: '1234' };
+
+function getStoredUsers() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY_USERS)) || [];
+  } catch {
+    return [];
+  }
+}
+
+function saveStoredUsers(users) {
+  localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
+}
+
+function obfuscate(str) {
+  return btoa(unescape(encodeURIComponent(str)));
+}
+
+function deobfuscate(str) {
+  try {
+    return decodeURIComponent(escape(atob(str)));
+  } catch {
+    return '';
+  }
+}
+
+function AuthProvider({ children }) {
+  const [username, setUsername] = useState(() =>
+    localStorage.getItem(STORAGE_KEY_AUTH_USER) || ''
+  );
+
+  const [isAuthenticated, setIsAuthenticated] = useState(() =>
+    localStorage.getItem(STORAGE_KEY_AUTH_STATUS) === 'true'
+  );
+
+  const register = (newUser, newPass, confirmPass) => {
+    const trimmedUser = newUser.trim();
+    const trimmedPass = newPass.trim();
+    const trimmedConfirm = confirmPass.trim();
+
+    if (!trimmedUser || !trimmedPass || !trimmedConfirm) {
+      return { success: false, message: 'All fields are required.' };
+    }
+
+    if (trimmedUser.length < 3) {
+      return { success: false, message: 'Username must be at least 3 characters.' };
+    }
+
+    if (trimmedPass.length < 4) {
+      return { success: false, message: 'Password must be at least 4 characters.' };
+    }
+
+    if (trimmedPass !== trimmedConfirm) {
+      return { success: false, message: 'Passwords do not match.' };
+    }
+
+    if (trimmedUser.toLowerCase() === ADMIN_USER.username.toLowerCase()) {
+      return { success: false, message: 'That username is already taken. Please choose another.' };
+    }
+
+    const users = getStoredUsers();
+    const exists = users.some(
+      (u) => u.username.toLowerCase() === trimmedUser.toLowerCase()
+    );
+
+    if (exists) {
+      return { success: false, message: 'That username is already registered. Please log in.' };
+    }
+
+    users.push({ username: trimmedUser, password: obfuscate(trimmedPass) });
+    saveStoredUsers(users);
+
+    return { success: true };
+  };
+
+  const login = (inputUser, inputPass) => {
+    const trimmedUser = inputUser.trim();
+    const trimmedPass = inputPass.trim();
+
+    if (!trimmedUser || !trimmedPass) {
+      return { success: false, message: 'Please enter both username and password.' };
+    }
+
+    if (
+      trimmedUser === ADMIN_USER.username &&
+      trimmedPass === ADMIN_USER.password
+    ) {
+      setUsername(trimmedUser);
+      setIsAuthenticated(true);
+      localStorage.setItem(STORAGE_KEY_AUTH_USER, trimmedUser);
+      localStorage.setItem(STORAGE_KEY_AUTH_STATUS, 'true');
+      return { success: true };
+    }
+
+    const users = getStoredUsers();
+    const match = users.find(
+      (u) =>
+        u.username.toLowerCase() === trimmedUser.toLowerCase() &&
+        deobfuscate(u.password) === trimmedPass
+    );
+
+    if (match) {
+      setUsername(match.username);
+      setIsAuthenticated(true);
+      localStorage.setItem(STORAGE_KEY_AUTH_USER, match.username);
+      localStorage.setItem(STORAGE_KEY_AUTH_STATUS, 'true');
+      return { success: true };
+    }
+
+    return { success: false, message: 'Incorrect username or password.' };
+  };
+
+  const logout = () => {
+    setUsername('');
+    setIsAuthenticated(false);
+    localStorage.removeItem(STORAGE_KEY_AUTH_USER);
+    localStorage.removeItem(STORAGE_KEY_AUTH_STATUS);
+  };
+
+  const value = { username, isAuthenticated, register, login, logout };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export { AuthContext, AuthProvider };
+
+
+================================================================================
+FILE 8: src/components/TheatreList.jsx
+================================================================================
+
+import React, { useMemo } from 'react';
+import useBooking from '../hooks/useBooking';
+import { COIMBATORE_THEATRES, getCoimbatoreAreas } from '../data/theatres.js';
+
+function TheatreList() {
+  const {
+    selectedTheatre,
+    handleSelectTheatre,
+    theatreAreaFilter,
+    setTheatreAreaFilter,
+    theatreSearchQuery,
+    setTheatreSearchQuery,
+  } = useBooking();
+
+  const areas = useMemo(() => getCoimbatoreAreas(), []);
+
+  const filteredTheatres = useMemo(() => {
+    return COIMBATORE_THEATRES.filter((theatre) => {
+      const matchesArea =
+        theatreAreaFilter === 'All Areas' || theatre.area.toLowerCase() === theatreAreaFilter.toLowerCase();
+
+      const q = theatreSearchQuery.trim().toLowerCase();
+      const matchesSearch =
+        !q ||
+        theatre.name.toLowerCase().includes(q) ||
+        theatre.area.toLowerCase().includes(q) ||
+        theatre.address.toLowerCase().includes(q) ||
+        theatre.landmark.toLowerCase().includes(q);
+
+      return matchesArea && matchesSearch;
+    });
+  }, [theatreAreaFilter, theatreSearchQuery]);
+
+  return (
+    <div className="theatre-selection-container">
+      <div className="theatre-filter-toolbar">
+        <div className="theatre-search-box">
+          <span className="search-icon">🔍</span>
+          <input
+            type="text"
+            className="theatre-search-input"
+            value={theatreSearchQuery}
+            onChange={(e) => setTheatreSearchQuery(e.target.value)}
+            placeholder="Search Coimbatore theatres by name, area, or road..."
+            aria-label="Search Coimbatore theatres"
+          />
+          {theatreSearchQuery && (
+            <button
+              type="button"
+              className="clear-search-btn"
+              onClick={() => setTheatreSearchQuery('')}
+              title="Clear search"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        <div className="theatre-area-pills" role="tablist" aria-label="Filter by Coimbatore area">
+          {areas.map((area) => {
+            const isActive = theatreAreaFilter === area;
+            return (
+              <button
+                key={area}
+                type="button"
+                className={`area-pill-btn ${isActive ? 'active' : ''}`}
+                onClick={() => setTheatreAreaFilter(area)}
+              >
+                {area}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {filteredTheatres.length === 0 ? (
+        <div className="theatres-empty-state">
+          <span className="empty-icon">🏛️</span>
+          <p>No Coimbatore theatres found matching "{theatreSearchQuery}".</p>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => {
+              setTheatreSearchQuery('');
+              setTheatreAreaFilter('All Areas');
+            }}
+          >
+            Reset Filters
+          </button>
+        </div>
+      ) : (
+        <div className="theatres-grid">
+          {filteredTheatres.map((theatre) => {
+            const isSelected = selectedTheatre?.id === theatre.id;
+            return (
+              <div
+                key={theatre.id}
+                onClick={() => handleSelectTheatre(theatre)}
+                className={`theatre-card ${isSelected ? 'selected' : ''}`}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleSelectTheatre(theatre);
+                  }
+                }}
+                aria-pressed={isSelected}
+              >
+                <div className="theatre-card-top">
+                  <div className="theatre-name">{theatre.name}</div>
+                  <span className="theatre-area-badge">{theatre.area}</span>
+                </div>
+
+                <div className="theatre-address-text">
+                  📍 {theatre.address}
+                </div>
+
+                {theatre.landmark && (
+                  <div className="theatre-landmark-note">
+                    Near: {theatre.landmark}
+                  </div>
+                )}
+
+                <div className="theatre-specs-row">
+                  <span className="theatre-screen-spec">{theatre.screens}</span>
+                  {theatre.formats && theatre.formats.slice(0, 2).map((fmt) => (
+                    <span key={fmt} className="theatre-format-badge">
+                      {fmt}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="theatre-card-footer">
+                  {isSelected ? (
+                    <div className="selected-theatre-indicator">
+                      ✓ Selected Venue
+                    </div>
+                  ) : (
+                    <span className="select-theatre-prompt">Click to Select</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default TheatreList;
+
+
+================================================================================
+FILE 9: src/components/ShowTiming.jsx
+================================================================================
+
+import React, { useMemo } from 'react';
+import useBooking from '../hooks/useBooking';
+import { getShowtimesForTheatre } from '../data/showtimes.js';
+
+function ShowTiming() {
+  const {
+    selectedTheatre,
+    selectedDate,
+    handleSelectDate,
+    selectedTime,
+    handleSelectTime,
+    availableDates,
+  } = useBooking();
+
+  const showtimes = useMemo(() => {
+    return getShowtimesForTheatre(selectedTheatre?.id, selectedDate?.iso);
+  }, [selectedTheatre, selectedDate]);
+
+  return (
+    <div className="show-timing-container">
+      <div className="timing-block">
+        <div className="timing-section-header">
+          <div className="timing-section-label">
+            <span>📅</span>
+            <span>1. Select Date (Today up to 7 Days Ahead)</span>
+          </div>
+          {selectedDate && (
+            <span className="current-date-pill">
+              Selected: {selectedDate.displayLabel}
+            </span>
+          )}
+        </div>
+
+        <div className="dates-grid" role="radiogroup" aria-label="Select booking date">
+          {availableDates.map((d) => {
+            const isSelected = selectedDate?.iso === d.iso;
+            return (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => handleSelectDate(d)}
+                className={`date-chip ${isSelected ? 'selected' : ''}`}
+                title={d.full}
+                aria-checked={isSelected}
+                role="radio"
+              >
+                <span className="date-day">{d.dayName}</span>
+                <span className="date-num">{d.dayNum}</span>
+                <span className="date-month">{d.monthStr}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="timing-block" style={{ marginTop: '22px' }}>
+        <div className="timing-section-header">
+          <div className="timing-section-label">
+            <span>⏰</span>
+            <span>2. Select Showtime</span>
+          </div>
+          {selectedTime && (
+            <span className="current-time-pill">
+              Selected: {selectedTime.time} ({selectedTime.label})
+            </span>
+          )}
+        </div>
+
+        <div className="timings-grid" role="radiogroup" aria-label="Select show timing">
+          {showtimes.map((timing) => {
+            const isSelected = selectedTime?.id === timing.id;
+            const isAvailable = timing.isAvailable;
+
+            return (
+              <button
+                key={timing.id}
+                type="button"
+                onClick={() => isAvailable && handleSelectTime(timing)}
+                disabled={!isAvailable}
+                className={`timing-pill ${isSelected ? 'selected' : ''} ${!isAvailable ? 'disabled-time' : ''}`}
+                title={
+                  !isAvailable
+                    ? `${timing.time} – Show time has passed for today`
+                    : `${timing.time} (${timing.label})`
+                }
+                aria-checked={isSelected}
+                role="radio"
+              >
+                <span className="time-display">{timing.time}</span>
+                <span className="time-label">{isAvailable ? timing.label : 'Past Show'}</span>
+                {isSelected && <span className="time-selected-check">✓</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="schedule-disclaimer-note">
+          ℹ️ <em>Demo Coimbatore schedule: Showtimes differ by date &amp; venue. Past shows for today are automatically disabled.</em>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default ShowTiming;
+
+
+================================================================================
+FILE 10: src/components/SeatSelection.jsx
+================================================================================
+
+import React, { useState } from 'react';
+import useBooking from '../hooks/useBooking';
+import { ROW_CONFIG, getSeatCategory, getSeatPrice } from '../data/seatLayout.js';
+
+function SeatSelection() {
+  const {
+    selectedSeats,
+    handleToggleSeat,
+    bookedSeatsForCurrentShow,
+    priceBreakdown,
+    totalAmount,
+    selectedMovie,
+    selectedTheatre,
+    selectedDate,
+    selectedTime,
+  } = useBooking();
+
+  const [blockedSeatWarning, setBlockedSeatWarning] = useState(null);
+
+  const handleSeatClick = (seatId) => {
+    if (bookedSeatsForCurrentShow.includes(seatId)) {
+      setBlockedSeatWarning(`⚠️ Seat ${seatId} is already booked for this screening. Please select another seat.`);
+      setTimeout(() => setBlockedSeatWarning(null), 3000);
+      return;
+    }
+
+    setBlockedSeatWarning(null);
+    handleToggleSeat(seatId);
+  };
+
+  const isSelectionDisabled = !selectedMovie || !selectedTheatre || !selectedDate || !selectedTime;
+
+  return (
+    <div className="seat-selection-container">
+      <div className="seat-selection-header-banner">
+        <div className="screening-meta-summary">
+          <span className="meta-point">🎬 <strong>{selectedMovie?.title || 'Selected Movie'}</strong></span>
+          <span className="meta-sep">•</span>
+          <span className="meta-point">🏛️ <strong>{selectedTheatre?.name || 'Selected Theatre'}</strong></span>
+          <span className="meta-sep">•</span>
+          <span className="meta-point">📅 <strong>{selectedDate?.displayLabel || 'Date'}</strong></span>
+          <span className="meta-sep">•</span>
+          <span className="meta-point">⏰ <strong>{selectedTime?.time || 'Showtime'}</strong></span>
+        </div>
+      </div>
+
+      {isSelectionDisabled && (
+        <div className="seat-disabled-notice">
+          👉 <em>Please choose a Theatre, Date, and Showtime above before picking your seats.</em>
+        </div>
+      )}
+
+      {blockedSeatWarning && (
+        <div className="seat-warning-toast" role="alert">
+          {blockedSeatWarning}
+        </div>
+      )}
+
+      <div className="screen-container">
+        <div className="screen-curve"></div>
+        <div className="screen-text">
+          <span>ALL EYES THIS WAY • 4K LASER CINEMA SCREEN</span>
+        </div>
+      </div>
+
+      <div className="cinema-auditorium">
+        {ROW_CONFIG.map(({ row, category, price, seatsCount }) => (
+          <div key={row} className="seat-row-wrapper">
+            <span className={`row-tier-pill tier-${category.toLowerCase()}`}>
+              {category.slice(0, 3)}
+            </span>
+
+            <span className="row-letter-label">{row}</span>
+
+            <div className="seat-row-seats">
+              <div className="seats-block left-block">
+                {Array.from({ length: 5 }, (_, i) => i + 1).map((num) => {
+                  const seatId = `${row}${num}`;
+                  const isBooked = bookedSeatsForCurrentShow.includes(seatId);
+                  const isSelected = selectedSeats.includes(seatId);
+
+                  return (
+                    <button
+                      key={seatId}
+                      type="button"
+                      onClick={() => handleSeatClick(seatId)}
+                      disabled={isBooked || isSelectionDisabled}
+                      className={`seat-box tier-${category.toLowerCase()} ${
+                        isBooked ? 'booked' : isSelected ? 'selected' : 'available'
+                      }`}
+                      title={
+                        isBooked
+                          ? `Seat ${seatId} (${category}) – Already Booked`
+                          : `Seat ${seatId} (${category}) – Rs. ${price}`
+                      }
+                      aria-label={`Seat ${seatId}, ${category}, Rs. ${price}, ${
+                        isBooked ? 'Booked' : isSelected ? 'Selected' : 'Available'
+                      }`}
+                    >
+                      <span className="seat-inner-num">{num}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="aisle-spacer" aria-hidden="true">
+                <span className="aisle-label">AISLE</span>
+              </div>
+
+              <div className="seats-block right-block">
+                {Array.from({ length: seatsCount - 5 }, (_, i) => i + 6).map((num) => {
+                  const seatId = `${row}${num}`;
+                  const isBooked = bookedSeatsForCurrentShow.includes(seatId);
+                  const isSelected = selectedSeats.includes(seatId);
+
+                  return (
+                    <button
+                      key={seatId}
+                      type="button"
+                      onClick={() => handleSeatClick(seatId)}
+                      disabled={isBooked || isSelectionDisabled}
+                      className={`seat-box tier-${category.toLowerCase()} ${
+                        isBooked ? 'booked' : isSelected ? 'selected' : 'available'
+                      }`}
+                      title={
+                        isBooked
+                          ? `Seat ${seatId} (${category}) – Already Booked`
+                          : `Seat ${seatId} (${category}) – Rs. ${price}`
+                      }
+                      aria-label={`Seat ${seatId}, ${category}, Rs. ${price}, ${
+                        isBooked ? 'Booked' : isSelected ? 'Selected' : 'Available'
+                      }`}
+                    >
+                      <span className="seat-inner-num">{num}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <span className="row-letter-label right-side">{row}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="seats-legend-panel">
+        <div className="legend-group">
+          <span className="legend-group-title">Status:</span>
+          <div className="legend-item">
+            <span className="legend-box sample-available"></span>
+            <span>Available</span>
+          </div>
+          <div className="legend-item">
+            <span className="legend-box sample-selected"></span>
+            <span>Selected</span>
+          </div>
+          <div className="legend-item">
+            <span className="legend-box sample-booked">✕</span>
+            <span>Booked</span>
+          </div>
+        </div>
+
+        <div className="legend-group">
+          <span className="legend-group-title">Categories:</span>
+          <div className="legend-item">
+            <span className="category-dot tier-regular"></span>
+            <span>Regular (A–E) • ₹150</span>
+          </div>
+          <div className="legend-item">
+            <span className="category-dot tier-premium"></span>
+            <span>Premium (F–H) • ₹200</span>
+          </div>
+          <div className="legend-item">
+            <span className="category-dot tier-recliner"></span>
+            <span>Recliner (I–J) • ₹300</span>
+          </div>
+        </div>
+      </div>
+
+      {selectedSeats.length > 0 && (
+        <div className="seat-selection-summary-card">
+          <div className="selection-summary-top">
+            <div className="selected-seats-chip-list">
+              <span className="chips-title">Chosen Seats ({selectedSeats.length}):</span>
+              {selectedSeats.map((seatId) => (
+                <span key={seatId} className={`chosen-seat-chip chip-${getSeatCategory(seatId).toLowerCase()}`}>
+                  {seatId} <small>({getSeatCategory(seatId)} ₹{getSeatPrice(seatId)})</small>
+                </span>
+              ))}
+            </div>
+
+            <div className="selection-grand-total">
+              <span className="grand-total-label">Subtotal</span>
+              <span className="grand-total-amount">₹{totalAmount}</span>
+            </div>
+          </div>
+
+          <div className="category-pricing-breakdown-row">
+            {priceBreakdown.Regular.count > 0 && (
+              <span className="tier-breakdown-tag">
+                Regular: {priceBreakdown.Regular.count} × ₹150 = ₹{priceBreakdown.Regular.total}
+              </span>
+            )}
+            {priceBreakdown.Premium.count > 0 && (
+              <span className="tier-breakdown-tag">
+                Premium: {priceBreakdown.Premium.count} × ₹200 = ₹{priceBreakdown.Premium.total}
+              </span>
+            )}
+            {priceBreakdown.Recliner.count > 0 && (
+              <span className="tier-breakdown-tag">
+                Recliner: {priceBreakdown.Recliner.count} × ₹300 = ₹{priceBreakdown.Recliner.total}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default SeatSelection;
+
+
+================================================================================
+FILE 11: src/components/BookingSummary.jsx
+================================================================================
+
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import useBooking from '../hooks/useBooking';
+
+function BookingSummary() {
+  const navigate = useNavigate();
+  const {
+    selectedMovie,
+    selectedTheatre,
+    selectedDate,
+    selectedTime,
+    selectedSeats,
+    priceBreakdown,
+    totalAmount,
+    bookingConfirmed,
+    activeBookingReference,
+    bookingError,
+    handleConfirmBooking,
+    handleResetBooking,
+  } = useBooking();
+
+  const isReady =
+    selectedMovie && selectedTheatre && selectedDate && selectedTime && selectedSeats.length > 0;
+
+  const handleCancel = () => {
+    navigate('/booking');
+  };
+
+  const handleStartNewBooking = () => {
+    handleResetBooking();
+    navigate('/movies');
+  };
+
+  return (
+    <div className="ticket-wrapper">
+      <div className="ticket-card coimbatore-ticket">
+        <div className="ticket-header">
+          <div className="ticket-brand-row">
+            <span className="ticket-brand-name">🎟️ BookMyMovie</span>
+            <span className="ticket-city-badge">Coimbatore Edition</span>
+          </div>
+          <h3>CINEMA ADMISSION PASS</h3>
+          <p className="ticket-subtext">Verified Multiplex Reserved Seating</p>
+
+          {activeBookingReference && (
+            <div className="ticket-ref-banner">
+              <span className="ref-label">BOOKING REF:</span>
+              <span className="ref-code">{activeBookingReference}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="ticket-body">
+          <div className="ticket-movie-row">
+            {selectedMovie?.poster && (
+              <img
+                src={selectedMovie.poster}
+                alt={selectedMovie.title}
+                className="ticket-movie-poster"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            )}
+            <div className="ticket-movie-info">
+              <div className="ticket-movie-title">{selectedMovie?.title || '—'}</div>
+              <div className="ticket-movie-meta">
+                <span>{selectedMovie?.language}</span>
+                {selectedMovie?.category && <span>• {selectedMovie.category} Cinema</span>}
+                {selectedMovie?.year && <span>• {selectedMovie.year}</span>}
+              </div>
+            </div>
+          </div>
+
+          <hr className="ticket-divider" />
+
+          <div className="ticket-item">
+            <span className="ticket-label">Cinema Venue</span>
+            <span className="ticket-val highlight-venue">
+              {selectedTheatre ? `${selectedTheatre.name} (${selectedTheatre.area})` : '—'}
+            </span>
+          </div>
+
+          {selectedTheatre?.address && (
+            <div className="ticket-item address-item">
+              <span className="ticket-label">Address</span>
+              <span className="ticket-val address-val">
+                {selectedTheatre.address}
+              </span>
+            </div>
+          )}
+
+          {selectedTheatre?.screens && (
+            <div className="ticket-item">
+              <span className="ticket-label">Screen Format</span>
+              <span className="ticket-val">{selectedTheatre.screens}</span>
+            </div>
+          )}
+
+          <hr className="ticket-divider" />
+
+          <div className="ticket-meta-grid-2col">
+            <div className="ticket-item">
+              <span className="ticket-label">Date</span>
+              <span className="ticket-val highlight-val">
+                {selectedDate ? selectedDate.displayLabel : '—'}
+              </span>
+            </div>
+
+            <div className="ticket-item">
+              <span className="ticket-label">Showtime</span>
+              <span className="ticket-val highlight-val">
+                {selectedTime ? `${selectedTime.time} (${selectedTime.label})` : '—'}
+              </span>
+            </div>
+          </div>
+
+          <hr className="ticket-divider" />
+
+          <div className="ticket-item">
+            <span className="ticket-label">Reserved Seats ({selectedSeats.length})</span>
+            <span className="ticket-val seats-highlight">
+              {selectedSeats.length > 0 ? selectedSeats.join(', ') : 'None'}
+            </span>
+          </div>
+
+          <div className="ticket-item price-breakdown-box">
+            <span className="ticket-label">Category Breakdown</span>
+            <div className="ticket-pricing-list">
+              {priceBreakdown.Regular.count > 0 && (
+                <div className="tier-price-line">
+                  <span>Regular ({priceBreakdown.Regular.seats.join(', ')})</span>
+                  <span>
+                    {priceBreakdown.Regular.count} × ₹150 = <strong>₹{priceBreakdown.Regular.total}</strong>
+                  </span>
+                </div>
+              )}
+              {priceBreakdown.Premium.count > 0 && (
+                <div className="tier-price-line">
+                  <span>Premium ({priceBreakdown.Premium.seats.join(', ')})</span>
+                  <span>
+                    {priceBreakdown.Premium.count} × ₹200 = <strong>₹{priceBreakdown.Premium.total}</strong>
+                  </span>
+                </div>
+              )}
+              {priceBreakdown.Recliner.count > 0 && (
+                <div className="tier-price-line">
+                  <span>Recliner ({priceBreakdown.Recliner.seats.join(', ')})</span>
+                  <span>
+                    {priceBreakdown.Recliner.count} × ₹300 = <strong>₹{priceBreakdown.Recliner.total}</strong>
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <hr className="ticket-divider" />
+
+          <div className="ticket-item grand-total-line">
+            <span className="ticket-label total-label">Total Amount Payable</span>
+            <span className="ticket-total-val">₹{totalAmount}</span>
+          </div>
+        </div>
+
+        {bookingError && (
+          <div className="ticket-error-alert" role="alert">
+            ⚠️ {bookingError}
+          </div>
+        )}
+
+        <div className="ticket-footer">
+          {!bookingConfirmed ? (
+            <div className="ticket-action-buttons">
+              <button
+                type="button"
+                onClick={handleConfirmBooking}
+                disabled={!isReady}
+                className="btn-primary confirm-booking-btn"
+              >
+                <span>Confirm &amp; Book Tickets</span>
+                <span>(₹{totalAmount})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="btn-secondary cancel-booking-btn"
+              >
+                ← Back to Modify Seats
+              </button>
+            </div>
+          ) : (
+            <div className="confirmed-box">
+              <div className="confirmed-icon">✓</div>
+              <div className="confirmed-title">Booking Confirmed Successfully!</div>
+              <p>Your seats are secured at {selectedTheatre?.name}.</p>
+              <div className="confirmed-ref-badge">
+                Reference Code: <strong>{activeBookingReference}</strong>
+              </div>
+              <p style={{ marginTop: '10px', fontSize: '13px', color: '#94a3b8' }}>
+                Show this digital pass at the multiplex entrance counter. Enjoy your movie! 🍿
+              </p>
+
+              <div className="post-confirm-actions">
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleStartNewBooking}
+                >
+                  🍿 Book Another Movie
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default BookingSummary;
+
+
+================================================================================
+FILE 12: src/components/MovieCard.jsx
+================================================================================
+
+import { useNavigate } from 'react-router-dom';
+
+function MovieCard({ movie, isSelected = false, onSelect }) {
+  const navigate = useNavigate();
+
+  if (!movie) return null;
+
+  const handleCardClick = () => {
+    navigate(`/movies/${movie.id}`);
+  };
+
+  const handleBookClick = (e) => {
+    e.stopPropagation();
+    if (onSelect) {
+      onSelect(movie);
+    }
+  };
+
+  const displayRating =
+    movie.rating && movie.rating !== 'N/A'
+      ? typeof movie.rating === 'number'
+        ? movie.rating.toFixed(1)
+        : movie.rating
+      : null;
+
+  return (
+    <article
+      className={`movie-card ${isSelected ? 'selected' : ''}`}
+      onClick={handleCardClick}
+      tabIndex={0}
+      role="button"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleCardClick();
+        }
+      }}
+      aria-label={`View details for ${movie.title}`}
+    >
+      <div className="movie-poster-container">
+        {movie.poster ? (
+          <img
+            src={movie.poster}
+            alt={`${movie.title} poster`}
+            className="movie-poster-img"
+            loading="lazy"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              const fallback = e.currentTarget.nextElementSibling;
+              if (fallback) fallback.style.display = 'flex';
+            }}
+          />
+        ) : null}
+        <div
+          className="movie-poster-fallback"
+          style={{ display: movie.poster ? 'none' : 'flex' }}
+        >
+          <span className="fallback-cinema-icon">🎬</span>
+          <span className="fallback-title-abbr">{movie.title.slice(0, 18)}</span>
+        </div>
+
+        {displayRating && (
+          <div className="movie-rating-badge" title={`Rating: ${displayRating} / 10`}>
+            <span className="star-icon">★</span>
+            <span className="rating-value">{displayRating}</span>
+          </div>
+        )}
+
+        {movie.category && (
+          <div className="movie-category-badge" title={`Industry: ${movie.category}`}>
+            {movie.category}
+          </div>
+        )}
+
+        {movie.isUpcoming && (
+          <div className="movie-upcoming-badge" title="Scheduled 2026 Cinema Release">
+            Upcoming • 2026
+          </div>
+        )}
+
+        {isSelected && (
+          <div className="selected-tag">
+            ✓ Selected for Booking
+          </div>
+        )}
+      </div>
+
+      <div className="movie-card-info">
+        <h3 className="movie-card-title" title={movie.title}>
+          {movie.title}
+        </h3>
+
+        <div className="movie-card-genre">
+          {movie.genre || (Array.isArray(movie.genres) ? movie.genres.join(' / ') : 'Cinema')}
+        </div>
+
+        <div className="movie-card-submeta">
+          <span className="submeta-lang">{movie.language}</span>
+          {movie.year && <span className="submeta-year">• {movie.year}</span>}
+          {movie.runtime && <span className="submeta-runtime">• {movie.runtime}</span>}
+        </div>
+      </div>
+
+      <div className="movie-card-actions">
+        <button
+          type="button"
+          className="btn-card-details"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/movies/${movie.id}`);
+          }}
+          title="Read full synopsis and release details"
+        >
+          View Details
+        </button>
+
+        <button
+          type="button"
+          className={`btn-card-select ${isSelected ? 'active-select' : ''}`}
+          onClick={handleBookClick}
+          title={isSelected ? 'Selected for booking' : `Book tickets for ${movie.title}`}
+        >
+          {isSelected ? '✓ Selected' : 'Book Tickets'}
+        </button>
+      </div>
+    </article>
+  );
+}
+
+export default MovieCard;
+
+
+================================================================================
+FILE 13: src/components/MovieList.jsx
+================================================================================
+
+import React from 'react';
+import MovieCard from './MovieCard';
+import Loading from './Loading';
+import ErrorMessage from './ErrorMessage';
+import EmptyState from './EmptyState';
+import useBooking from '../hooks/useBooking';
+
+function MovieList({
+  movies = [],
+  isLoading = false,
+  error = null,
+  onRetry,
+  onReset,
+  onSelectAndContinue,
+}) {
+  const { selectedMovie, handleSelectMovie } = useBooking();
+
+  if (isLoading) {
+    return <Loading type="skeleton" count={8} />;
+  }
+
+  if (error) {
+    return (
+      <ErrorMessage
+        title="Failed to Load Movies"
+        message={error}
+        onRetry={onRetry}
+        retryText="Retry Loading"
+      />
+    );
+  }
+
+  if (!movies || movies.length === 0) {
+    return (
+      <EmptyState
+        title="No Movies Found"
+        message="No cinema titles matched your current search query or genre filter. Try adjusting your search."
+        onReset={onReset}
+      />
+    );
+  }
+
+  const handleMovieSelect = (movie) => {
+    handleSelectMovie(movie);
+    if (onSelectAndContinue) {
+      onSelectAndContinue(movie);
+    }
+  };
+
+  return (
+    <section className="movie-list-section" aria-label="Movies Collection">
+      <div className="movies-grid">
+        {movies.map((movie) => {
+          const isSelected = selectedMovie && String(selectedMovie.id) === String(movie.id);
+          return (
+            <MovieCard
+              key={movie.id}
+              movie={movie}
+              isSelected={isSelected}
+              onSelect={handleMovieSelect}
+            />
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+export default MovieList;
+
+
+================================================================================
+FILE 14: src/components/SearchBar.jsx
+================================================================================
+
+import React from 'react';
+
+function SearchBar({
+  searchQuery = '',
+  onSearchChange,
+  searchInputRef,
+  placeholder = 'Search movie titles (e.g. Dune, Batman, Avengers)...',
+}) {
+  return (
+    <div className="search-bar-container">
+      <div className="search-input-wrapper">
+        <span className="search-icon" aria-hidden="true">
+          🔍
+        </span>
+        <input
+          ref={searchInputRef}
+          type="text"
+          className="search-input"
+          placeholder={placeholder}
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          aria-label="Search movies by title"
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            className="search-clear-btn"
+            onClick={() => onSearchChange('')}
+            aria-label="Clear search input"
+            title="Clear"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default SearchBar;
+
+
+================================================================================
+FILE 15: src/components/CategoryFilter.jsx
+================================================================================
+
+function CategoryFilter({
+  categories = ['All Movies', 'Tamil', 'Hollywood'],
+  selectedCategory = 'All Movies',
+  onSelectCategory,
+}) {
+  return (
+    <div className="category-filter-wrapper" role="toolbar" aria-label="Movie Category Filters">
+      <span className="category-filter-label">Industry:</span>
+      <div className="category-pills-list">
+        {categories.map((cat) => {
+          const isSelected =
+            selectedCategory.toLowerCase() === cat.toLowerCase() ||
+            (selectedCategory === '' && cat === 'All Movies');
+
+          return (
+            <button
+              key={cat}
+              type="button"
+              className={`category-pill-btn ${isSelected ? 'active' : ''}`}
+              onClick={() => onSelectCategory(cat)}
+              aria-pressed={isSelected}
+            >
+              {cat === 'Tamil' && '🎭 '}
+              {cat === 'Hollywood' && '🎬 '}
+              {cat === 'All Movies' && '🍿 '}
+              {cat}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export default CategoryFilter;
+
+
+================================================================================
+FILE 16: src/components/GenreFilter.jsx
+================================================================================
+
+import React from 'react';
+
+function GenreFilter({
+  genres = [],
+  selectedGenre = 'All Genres',
+  onSelectGenre,
+}) {
+  return (
+    <div className="genre-filter-wrapper" role="toolbar" aria-label="Genre Filters">
+      <span className="genre-filter-label">Filter Genre:</span>
+      <div className="genre-pills-list">
+        {genres.map((genre) => {
+          const isSelected =
+            selectedGenre.toLowerCase() === genre.toLowerCase() ||
+            (selectedGenre === '' && (genre === 'All' || genre === 'All Genres'));
+
+          return (
+            <button
+              key={genre}
+              type="button"
+              className={`genre-pill-btn ${isSelected ? 'active' : ''}`}
+              onClick={() => onSelectGenre(genre)}
+              aria-pressed={isSelected}
+            >
+              {genre}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export default GenreFilter;
+
+
+================================================================================
+FILE 17: src/components/BookMyMovieIcon.jsx
+================================================================================
+
+import React from 'react';
+
+function BookMyMovieIcon({ size = 32, className = '' }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 64 64"
+      width={size}
+      height={size}
+      className={`bmm-icon-svg ${className}`}
+      aria-hidden="true"
+      focusable="false"
+    >
+      <defs>
+        <linearGradient id="bmmGradientRed" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#e50914" />
+          <stop offset="100%" stopColor="#990000" />
+        </linearGradient>
+        <linearGradient id="bmmGradientGold" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#fbbf24" />
+          <stop offset="100%" stopColor="#f59e0b" />
+        </linearGradient>
+      </defs>
+
+      <rect x="6" y="10" width="52" height="44" rx="10" fill="url(#bmmGradientRed)" />
+      <path d="M6 32 C12 32 12 36 6 36 Z" fill="#0f172a" />
+      <path d="M58 32 C52 32 52 36 58 36 Z" fill="#0f172a" />
+      <line x1="22" y1="14" x2="22" y2="50" stroke="#fecaca" strokeWidth="2" strokeDasharray="3 3" opacity="0.6" />
+      <polygon points="34,22 48,32 34,42" fill="url(#bmmGradientGold)" />
+      <circle cx="14" cy="22" r="2.5" fill="#ffffff" opacity="0.9" />
+      <circle cx="14" cy="42" r="2.5" fill="#ffffff" opacity="0.9" />
+    </svg>
+  );
+}
+
+export default BookMyMovieIcon;
+
+
+================================================================================
+FILE 18: src/components/Header.jsx
+================================================================================
+
+import React from 'react';
+import { NavLink, Link, useNavigate } from 'react-router-dom';
+import useAuth from '../hooks/useAuth';
+import BookMyMovieIcon from './BookMyMovieIcon';
+
+function Header() {
+  const { isAuthenticated, username, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  return (
+    <header className="navbar">
+      <div className="navbar-container">
+        <Link to="/" className="navbar-brand" aria-label="BookMyMovie Home">
+          <BookMyMovieIcon size={34} className="navbar-bmm-icon" />
+          <span className="brand-text">Book<span className="brand-text-accent">My</span>Movie</span>
+        </Link>
+
+        <nav aria-label="Main Navigation">
+          <ul className="navbar-links">
+            <li>
+              <NavLink
+                to="/"
+                end
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              >
+                Home
+              </NavLink>
+            </li>
+
+            <li>
+              <NavLink
+                to="/movies"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              >
+                Movies
+              </NavLink>
+            </li>
+
+            <li>
+              <NavLink
+                to="/summary"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              >
+                My Bookings
+              </NavLink>
+            </li>
+
+            {!isAuthenticated ? (
+              <>
+                <li>
+                  <NavLink
+                    to="/login"
+                    className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                  >
+                    Login
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/register"
+                    className={({ isActive }) => `nav-link nav-register-btn ${isActive ? 'active' : ''}`}
+                  >
+                    Register
+                  </NavLink>
+                </li>
+              </>
+            ) : (
+              <>
+                <li>
+                  <NavLink
+                    to="/booking"
+                    className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                  >
+                    Seat Booking
+                  </NavLink>
+                </li>
+
+                <li className="user-nav-item">
+                  <span className="user-chip" title={`Signed in as ${username}`}>
+                    <span className="user-avatar-icon">👤</span>
+                    <span className="user-name-text">{username}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="logout-btn"
+                    title="Sign out of account"
+                  >
+                    Logout
+                  </button>
+                </li>
+              </>
+            )}
+          </ul>
+        </nav>
+      </div>
+    </header>
+  );
+}
+
+export default Header;
+
+
+================================================================================
+FILE 19: src/pages/MoviesPage.jsx
+================================================================================
+
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import useBooking from '../hooks/useBooking';
+import SearchBar from '../components/SearchBar';
+import CategoryFilter from '../components/CategoryFilter';
+import GenreFilter from '../components/GenreFilter';
+import MovieList from '../components/MovieList';
+import { fetchMovies, getStandardGenres, getAvailableCategories } from '../services/movieApi';
+
+function MoviesPage() {
+  const navigate = useNavigate();
+  const searchInputRef = useRef(null);
+  const { selectedMovie, handleSelectMovie } = useBooking();
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All Movies');
+  const [selectedGenre, setSelectedGenre] = useState('All Genres');
+  const [movies, setMovies] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [isLiveApi, setIsLiveApi] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const availableCategories = useMemo(() => getAvailableCategories(), []);
+  const availableGenres = useMemo(() => getStandardGenres(), []);
+
+  const loadMovies = useCallback(async (search, category, genre, pageNum = 1, signal) => {
+    if (pageNum === 1) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
+    setError(null);
+
+    try {
+      const result = await fetchMovies({
+        search,
+        category,
+        genre,
+        page: pageNum,
+        signal,
+      });
+
+      if (pageNum === 1) {
+        setMovies(result.movies);
+      } else {
+        setMovies((prev) => [...prev, ...result.movies]);
+      }
+      setIsLiveApi(result.isLiveApi);
+      setTotalPages(result.totalPages || 1);
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      setError(err.message || 'Unable to fetch 2026 movies catalog.');
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, []);
+
+  const handleCategoryChange = (category) => {
+    setSelectedCategory(category);
+    setPage(1);
+  };
+
+  const handleGenreChange = (genre) => {
+    setSelectedGenre(genre);
+    setPage(1);
+  };
+
+  const handleSearchInputChange = (query) => {
+    setSearchQuery(query);
+    setPage(1);
+  };
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const timer = setTimeout(() => {
+      loadMovies(searchQuery, selectedCategory, selectedGenre, 1, controller.signal);
+    }, 280);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [searchQuery, selectedCategory, selectedGenre, loadMovies]);
+
+  const handleRetry = () => {
+    loadMovies(searchQuery, selectedCategory, selectedGenre, page);
+  };
+
+  const handleLoadMore = () => {
+    const nextPage = page + 1;
+    setPage(nextPage);
+    loadMovies(searchQuery, selectedCategory, selectedGenre, nextPage);
+  };
+
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setSelectedCategory('All Movies');
+    setSelectedGenre('All Genres');
+    setPage(1);
+    if (searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  };
+
+  const hasActiveFilters =
+    Boolean(searchQuery.trim()) ||
+    selectedCategory !== 'All Movies' ||
+    selectedGenre !== 'All Genres';
+
+  return (
+    <div className="movies-page">
+      <div className="page-header">
+        <div className="page-header-row">
+          <div>
+            <div className="year-highlight-badge">
+              <span>📅 2026 Cinema Season</span>
+            </div>
+            <h1 className="page-title">2026 Movies Catalog</h1>
+            <p className="page-subtitle">
+              Browse recent and upcoming 2026 Tamil and Hollywood blockbusters with TMDB integration
+            </p>
+          </div>
+
+          <div className="api-status-badge" title="Data Source Mode">
+            <span className={`status-dot ${isLiveApi ? 'live' : 'fallback'}`}></span>
+            <span className="status-text">
+              {isLiveApi ? 'Live TMDB API: Connected' : 'Mode: Local 2026 Demo Data'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="movies-filter-panel">
+        <SearchBar
+          searchQuery={searchQuery}
+          onSearchChange={handleSearchInputChange}
+          searchInputRef={searchInputRef}
+          placeholder="Search 2026 titles (e.g., Jailer 2, Doomsday, Mario Galaxy)..."
+        />
+
+        <CategoryFilter
+          categories={availableCategories}
+          selectedCategory={selectedCategory}
+          onSelectCategory={handleCategoryChange}
+        />
+
+        <GenreFilter
+          genres={availableGenres}
+          selectedGenre={selectedGenre}
+          onSelectGenre={handleGenreChange}
+        />
+      </div>
+
+      <div className="results-meta-bar">
+        <span className="results-count">
+          {!loading && !error && (
+            <>
+              Showing <strong>{movies.length}</strong> {movies.length === 1 ? 'movie' : 'movies'}
+              {selectedCategory !== 'All Movies' && ` in "${selectedCategory}"`}
+              {selectedGenre !== 'All Genres' && ` • Genre: "${selectedGenre}"`}
+              {searchQuery.trim() && ` • Matching: "${searchQuery.trim()}"`}
+            </>
+          )}
+        </span>
+
+        {hasActiveFilters && (
+          <button
+            type="button"
+            className="clear-all-filters-btn"
+            onClick={handleResetFilters}
+          >
+            Clear All Filters ✕
+          </button>
+        )}
+      </div>
+
+      <MovieList
+        movies={movies}
+        isLoading={loading}
+        error={error}
+        onRetry={handleRetry}
+        onReset={handleResetFilters}
+      />
+
+      {!loading && !error && isLiveApi && page < totalPages && (
+        <div className="load-more-container">
+          <button
+            type="button"
+            className="btn-secondary load-more-btn"
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+          >
+            {loadingMore ? 'Loading More Movies...' : 'Load More 2026 Movies ↓'}
+          </button>
+        </div>
+      )}
+
+      {selectedMovie && (
+        <div className="continue-bar">
+          <div className="continue-bar-info">
+            <div className="continue-movie-icon">🎟️</div>
+            <div>
+              <div className="continue-bar-label">Selected for Booking</div>
+              <div className="continue-bar-title">
+                {selectedMovie.title}
+                <span className="continue-bar-genre">
+                  ({selectedMovie.category || selectedMovie.language} • {selectedMovie.genre} {selectedMovie.year ? `• ${selectedMovie.year}` : ''})
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="continue-bar-actions">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => handleSelectMovie(null)}
+              title="Clear selection"
+            >
+              Clear Selection
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => navigate('/booking')}
+            >
+              <span>Continue to Seat Booking</span>
+              <span>→</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default MoviesPage;
+
+
+================================================================================
+FILE 20: src/pages/MovieDetailsPage.jsx
+================================================================================
+
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { getMovieById } from '../services/movieApi';
+import useBooking from '../hooks/useBooking';
+import Loading from '../components/Loading';
+import ErrorMessage from '../components/ErrorMessage';
+
+function MovieDetailsPage() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { selectedMovie, handleSelectMovie } = useBooking();
+
+  const [movie, setMovie] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [retryTrigger, setRetryTrigger] = useState(0);
+
+  useEffect(() => {
+    let ignore = false;
+    const controller = new AbortController();
+
+    async function fetchDetails() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const data = await getMovieById(id, { signal: controller.signal });
+        if (!ignore) {
+          setMovie(data);
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+        if (!ignore) {
+          setError(err.message || 'Unable to retrieve movie details.');
+        }
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchDetails();
+
+    return () => {
+      ignore = true;
+      controller.abort();
+    };
+  }, [id, retryTrigger]);
+
+  const handleBookNow = () => {
+    if (movie) {
+      handleSelectMovie(movie);
+      navigate('/booking');
+    }
+  };
+
+  const isCurrentSelection = selectedMovie && movie && String(selectedMovie.id) === String(movie.id);
+
+  const genreList = Array.isArray(movie?.genres) && movie.genres.length > 0
+    ? movie.genres.map((g) => (typeof g === 'object' && g ? g.name : String(g))).filter(Boolean)
+    : typeof movie?.genre === 'string'
+      ? movie.genre.split(/[/,•]/).map((s) => s.trim()).filter(Boolean)
+      : [];
+
+  const backdropUrl = movie?.backdrop || movie?.poster || '';
+
+  return (
+    <div className="movie-details-page">
+      <div className="details-nav-bar">
+        <button
+          type="button"
+          onClick={() => navigate('/movies')}
+          className="btn-back-link"
+        >
+          ← Back to Movies
+        </button>
+
+        <div className="details-breadcrumbs">
+          <Link to="/">Home</Link>
+          <span className="crumb-sep">/</span>
+          <Link to="/movies">Movies</Link>
+          <span className="crumb-sep">/</span>
+          <span className="crumb-current">{movie?.title || 'Details'}</span>
+        </div>
+      </div>
+
+      {loading && <Loading type="details" />}
+
+      {!loading && error && (
+        <div className="details-error-wrapper">
+          <ErrorMessage
+            title="Movie Not Found"
+            message={error}
+            onRetry={() => setRetryTrigger((c) => c + 1)}
+            retryText="Try Again"
+          />
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => navigate('/movies')}
+            style={{ marginTop: '16px' }}
+          >
+            ← Return to Movies Catalog
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && movie && (
+        <div className="movie-details-card">
+          <div
+            className="details-hero-banner"
+            style={{
+              backgroundImage: backdropUrl ? `url("${backdropUrl}")` : undefined,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center 25%',
+            }}
+          >
+            <div className="details-hero-overlay"></div>
+          </div>
+
+          <div className="details-main-content">
+            <div className="details-poster-col">
+              <div className="details-poster-wrap">
+                {movie.poster ? (
+                  <img
+                    src={movie.poster}
+                    alt={`${movie.title} poster`}
+                    className="details-poster-img"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      const fallback = e.currentTarget.nextElementSibling;
+                      if (fallback) fallback.style.display = 'flex';
+                    }}
+                  />
+                ) : null}
+                <div
+                  className="details-poster-fallback"
+                  style={{ display: movie.poster ? 'none' : 'flex' }}
+                >
+                  🎬
+                </div>
+              </div>
+
+              <div className="details-poster-actions">
+                <button
+                  type="button"
+                  className="btn-primary details-book-btn"
+                  onClick={handleBookNow}
+                >
+                  <span>🎟️</span>
+                  <span>{isCurrentSelection ? 'Proceed to Seat Selection' : 'Book Tickets Now'}</span>
+                </button>
+
+                {isCurrentSelection && (
+                  <div className="selected-active-note">
+                    ✓ Currently selected for your booking
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="details-info-col">
+              <div className="details-header-row">
+                <h1 className="details-movie-title">{movie.title}</h1>
+                {movie.year && (
+                  <span className="details-year-tag">({movie.year})</span>
+                )}
+                {movie.category && (
+                  <span className="details-category-pill">{movie.category} Cinema</span>
+                )}
+                {movie.isUpcoming && (
+                  <span className="details-upcoming-tag">
+                    ● Upcoming (2026 Release)
+                  </span>
+                )}
+              </div>
+
+              {genreList.length > 0 && (
+                <div className="details-genres-list">
+                  {genreList.map((g, idx) => (
+                    <span key={`${g}-${idx}`} className="details-genre-badge">
+                      {g}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div className="details-meta-grid">
+                {movie.rating && movie.rating !== 'N/A' && (
+                  <div className="meta-spec-item">
+                    <span className="spec-label">Rating</span>
+                    <span className="spec-value highlight-rating">
+                      ★ {typeof movie.rating === 'number' ? movie.rating.toFixed(1) : movie.rating} / 10
+                    </span>
+                  </div>
+                )}
+
+                {movie.runtime && (
+                  <div className="meta-spec-item">
+                    <span className="spec-label">Duration</span>
+                    <span className="spec-value">{movie.runtime}</span>
+                  </div>
+                )}
+
+                {movie.language && (
+                  <div className="meta-spec-item">
+                    <span className="spec-label">Language</span>
+                    <span className="spec-value">{movie.language}</span>
+                  </div>
+                )}
+
+                {(movie.releaseDateFormatted || movie.releaseDate) && (
+                  <div className="meta-spec-item">
+                    <span className="spec-label">Release Date</span>
+                    <span className="spec-value">
+                      {movie.releaseDateFormatted || movie.releaseDate}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="details-section">
+                <h3 className="section-heading">Synopsis</h3>
+                <p className="details-synopsis-text">
+                  {movie.description || 'No detailed synopsis provided.'}
+                </p>
+              </div>
+
+              {(movie.cast || movie.director) && (
+                <div className="details-section details-credits-section">
+                  {movie.director && (
+                    <div className="credit-item">
+                      <span className="credit-label">Director / Creator:</span>
+                      <span className="credit-value">{movie.director}</span>
+                    </div>
+                  )}
+                  {movie.cast && (
+                    <div className="credit-item">
+                      <span className="credit-label">Cast & Presentation:</span>
+                      <span className="credit-value">{movie.cast}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="details-bottom-bar">
+                <div className="ticket-rate-info">
+                  <span className="rate-label">Ticket Admission:</span>
+                  <span className="rate-amount">Rs. 150</span>
+                  <span className="rate-sub">per seat • Multiplex screen</span>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn-primary details-book-btn"
+                  onClick={handleBookNow}
+                >
+                  <span>Select Theatres & Seats</span>
+                  <span>→</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default MovieDetailsPage;
+
+
+================================================================================
+FILE 21: src/pages/BookingPage.jsx
+================================================================================
+
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import useBooking from '../hooks/useBooking';
+import TheatreList from '../components/TheatreList';
+import ShowTiming from '../components/ShowTiming';
+import SeatSelection from '../components/SeatSelection';
+
+function BookingPage() {
+  const navigate = useNavigate();
+  const {
+    selectedMovie,
+    selectedTheatre,
+    selectedDate,
+    selectedTime,
+    selectedSeats,
+    totalAmount,
+    priceBreakdown,
+  } = useBooking();
+
+  const canProceed =
+    selectedMovie && selectedTheatre && selectedDate && selectedTime && selectedSeats.length > 0;
+
+  const getValidationMessage = () => {
+    if (!selectedMovie)             return '👉 Please select a movie from the Movies page first.';
+    if (!selectedTheatre)           return '👉 Step 2: Please choose a Coimbatore cinema venue above to continue.';
+    if (!selectedDate)              return '👉 Step 3: Please choose your preferred booking date.';
+    if (!selectedTime)              return '👉 Step 3: Please choose a showtime to view available seats.';
+    if (selectedSeats.length === 0) return '👉 Step 4: Please pick at least 1 cinema seat to continue.';
+    return null;
+  };
+
+  const validationMessage = getValidationMessage();
+
+  return (
+    <div className="booking-page">
+      <div className="page-header">
+        <div className="coimbatore-tag-badge">
+          <span>🏛️ Coimbatore Multiplex Reserved Seating</span>
+        </div>
+        <h1 className="page-title">Cinema Ticket &amp; Seat Booking</h1>
+        <p className="page-subtitle">
+          Select verified Coimbatore theatres, show dates, showtimes, and reserved seats across 110-seat screens
+        </p>
+
+        <div className="booking-step-tracker" aria-label="Booking steps">
+          <div className={`step-item ${selectedMovie ? 'done' : 'active'}`}>
+            <span className="step-circle">{selectedMovie ? '✓' : '1'}</span>
+            <span className="step-label">1. Movie</span>
+          </div>
+          <div className="step-connector"></div>
+
+          <div className={`step-item ${selectedTheatre ? 'done' : selectedMovie ? 'active' : ''}`}>
+            <span className="step-circle">{selectedTheatre ? '✓' : '2'}</span>
+            <span className="step-label">2. Theatre</span>
+          </div>
+          <div className="step-connector"></div>
+
+          <div className={`step-item ${selectedDate && selectedTime ? 'done' : selectedTheatre ? 'active' : ''}`}>
+            <span className="step-circle">{selectedDate && selectedTime ? '✓' : '3'}</span>
+            <span className="step-label">3. Date &amp; Time</span>
+          </div>
+          <div className="step-connector"></div>
+
+          <div className={`step-item ${selectedSeats.length > 0 ? 'done' : selectedTime ? 'active' : ''}`}>
+            <span className="step-circle">{selectedSeats.length > 0 ? '✓' : '4'}</span>
+            <span className="step-label">4. Seats</span>
+          </div>
+          <div className="step-connector"></div>
+
+          <div className={`step-item ${canProceed ? 'active' : ''}`}>
+            <span className="step-circle">5</span>
+            <span className="step-label">5. Summary</span>
+          </div>
+        </div>
+      </div>
+
+      {!selectedMovie ? (
+        <div className="booking-card" style={{ textAlign: 'center', padding: '48px 24px' }}>
+          <div style={{ fontSize: '48px', marginBottom: '14px' }}>🎬</div>
+          <h3 style={{ fontSize: '20px', color: '#ffffff', marginBottom: '8px' }}>
+            No Movie Selected
+          </h3>
+          <p style={{ color: '#94a3b8', marginBottom: '24px' }}>
+            Please pick a 2026 blockbuster movie before choosing your theatre and seats.
+          </p>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => navigate('/movies')}
+          >
+            Browse Movies Catalog
+          </button>
+        </div>
+      ) : (
+        <div className="booking-layout">
+          <div className="booking-card">
+            <div className="booking-card-header">
+              <span>🎬</span>
+              <span>1. Selected Movie</span>
+            </div>
+            <div className="selected-movie-badge">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                {selectedMovie.poster && (
+                  <img
+                    src={selectedMovie.poster}
+                    alt={selectedMovie.title}
+                    style={{
+                      width: '46px',
+                      height: '64px',
+                      objectFit: 'cover',
+                      borderRadius: '4px',
+                      border: '1px solid #2e3440',
+                    }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                )}
+                <div>
+                  <div style={{ fontSize: '18px', fontWeight: 700, color: '#f3f4f6' }}>
+                    {selectedMovie.title}
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginTop: '3px' }}>
+                    {selectedMovie.category && <span>{selectedMovie.category} Cinema • </span>}
+                    {selectedMovie.language && <span>{selectedMovie.language} • </span>}
+                    {selectedMovie.year && <span>{selectedMovie.year}</span>}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => navigate('/movies')}
+              >
+                Change Movie
+              </button>
+            </div>
+          </div>
+
+          <div className="booking-card">
+            <div className="booking-card-header">
+              <span>🏛️</span>
+              <span>2. Choose Coimbatore Theatre Venue (10 Verified Cinemas)</span>
+            </div>
+            <TheatreList />
+          </div>
+
+          <div className="booking-card">
+            <div className="booking-card-header">
+              <span>⏰</span>
+              <span>3. Choose Booking Date &amp; Showtime</span>
+            </div>
+            <ShowTiming />
+          </div>
+
+          <div className="booking-card">
+            <div className="booking-card-header">
+              <span>💺</span>
+              <span>4. Reserve Your Seats (110 Seats Screen Layout)</span>
+            </div>
+            <SeatSelection />
+          </div>
+
+          <div className="booking-card">
+            <div className="booking-card-header">
+              <span>💳</span>
+              <span>5. Pricing Details &amp; Summary</span>
+            </div>
+
+            <div className="price-breakdown">
+              <div className="price-row">
+                <span>Selected Seats:</span>
+                <span style={{ color: selectedSeats.length > 0 ? '#f87171' : '#64748b', fontWeight: 700 }}>
+                  {selectedSeats.length > 0 ? selectedSeats.join(', ') : 'None'}
+                </span>
+              </div>
+              <div className="price-row">
+                <span>Total Tickets:</span>
+                <span style={{ color: '#ffffff', fontWeight: 600 }}>
+                  {selectedSeats.length}
+                </span>
+              </div>
+
+              {priceBreakdown.Regular.count > 0 && (
+                <div className="price-row">
+                  <span>Regular Seats (A–E):</span>
+                  <span>{priceBreakdown.Regular.count} × ₹150 = ₹{priceBreakdown.Regular.total}</span>
+                </div>
+              )}
+
+              {priceBreakdown.Premium.count > 0 && (
+                <div className="price-row">
+                  <span>Premium Seats (F–H):</span>
+                  <span>{priceBreakdown.Premium.count} × ₹200 = ₹{priceBreakdown.Premium.total}</span>
+                </div>
+              )}
+
+              {priceBreakdown.Recliner.count > 0 && (
+                <div className="price-row">
+                  <span>Recliner Seats (I–J):</span>
+                  <span>{priceBreakdown.Recliner.count} × ₹300 = ₹{priceBreakdown.Recliner.total}</span>
+                </div>
+              )}
+
+              <div className="price-row total-row">
+                <span>Grand Total:</span>
+                <span className="total-amount">₹{totalAmount}</span>
+              </div>
+            </div>
+
+            {validationMessage && (
+              <div className="booking-validation-alert" role="alert">
+                {validationMessage}
+              </div>
+            )}
+
+            <button
+              type="button"
+              className="btn-primary checkout-continue-btn"
+              disabled={!canProceed}
+              onClick={() => navigate('/summary')}
+            >
+              <span>Continue to Booking Summary</span>
+              <span>→</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default BookingPage;
+
+
+================================================================================
+FILE 22: src/pages/SummaryPage.jsx
+================================================================================
+
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import useBooking from '../hooks/useBooking';
+import BookingSummary from '../components/BookingSummary';
+
+function SummaryPage() {
+  const navigate = useNavigate();
+  const {
+    selectedMovie,
+    allBookings,
+    handleResetBooking,
+  } = useBooking();
+
+  const handleBookAnother = () => {
+    handleResetBooking();
+    navigate('/movies');
+  };
+
+  const hasActiveSelection = Boolean(selectedMovie);
+  const hasSavedBookings = allBookings && allBookings.length > 0;
+
+  return (
+    <div className="summary-page">
+      <div className="page-header" style={{ textAlign: 'center' }}>
+        <div className="coimbatore-tag-badge">
+          <span>🏛️ Coimbatore Multiplex Reserved Seating</span>
+        </div>
+        <h1 className="page-title">Booking Summary &amp; Admission Pass</h1>
+        <p className="page-subtitle">
+          {hasActiveSelection
+            ? 'Review your selected seats, theatre venue, and pricing before final confirmation'
+            : 'View your verified digital passes and ticket history'}
+        </p>
+      </div>
+
+      {hasActiveSelection ? (
+        <div className="active-summary-container">
+          <BookingSummary />
+        </div>
+      ) : hasSavedBookings ? (
+        <div className="saved-booking-wrapper">
+          <div className="saved-booking-header-badge">
+            <span>✓ Verified Digital Passes • Coimbatore Cinema Bookings</span>
+          </div>
+
+          <div className="my-bookings-list">
+            {allBookings.map((b, idx) => (
+              <div key={b.bookingId || idx} className="ticket-card coimbatore-ticket history-ticket">
+                <div className="ticket-header">
+                  <div className="ticket-brand-row">
+                    <span className="ticket-brand-name">🎟️ BookMyMovie</span>
+                    <span className="ticket-city-badge">Coimbatore Edition</span>
+                  </div>
+                  <h3>CINEMA ADMISSION PASS</h3>
+                  <div className="ticket-ref-banner">
+                    <span className="ref-label">REF:</span>
+                    <span className="ref-code">{b.bookingId || b.reference || 'BMM-CBE-PASS'}</span>
+                  </div>
+                </div>
+
+                <div className="ticket-body">
+                  <div className="ticket-movie-row">
+                    {b.movie?.poster && (
+                      <img
+                        src={b.movie.poster}
+                        alt={b.movie.title}
+                        className="ticket-movie-poster"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    )}
+                    <div className="ticket-movie-info">
+                      <div className="ticket-movie-title">{b.movie?.title}</div>
+                      <div className="ticket-movie-meta">
+                        <span>{b.movie?.language}</span>
+                        {b.movie?.category && <span>• {b.movie.category} Cinema</span>}
+                      </div>
+                    </div>
+                  </div>
+
+                  <hr className="ticket-divider" />
+
+                  <div className="ticket-item">
+                    <span className="ticket-label">Venue</span>
+                    <span className="ticket-val highlight-venue">
+                      {b.theatre?.name} ({b.theatre?.area})
+                    </span>
+                  </div>
+
+                  {b.theatre?.address && (
+                    <div className="ticket-item address-item">
+                      <span className="ticket-label">Address</span>
+                      <span className="ticket-val address-val">{b.theatre.address}</span>
+                    </div>
+                  )}
+
+                  <hr className="ticket-divider" />
+
+                  <div className="ticket-meta-grid-2col">
+                    <div className="ticket-item">
+                      <span className="ticket-label">Date</span>
+                      <span className="ticket-val highlight-val">{b.date?.displayLabel || b.date?.full}</span>
+                    </div>
+
+                    <div className="ticket-item">
+                      <span className="ticket-label">Showtime</span>
+                      <span className="ticket-val highlight-val">{b.showtime?.time || b.time?.time}</span>
+                    </div>
+                  </div>
+
+                  <hr className="ticket-divider" />
+
+                  <div className="ticket-item">
+                    <span className="ticket-label">Seats ({b.seats?.length})</span>
+                    <span className="ticket-val seats-highlight">{b.seats?.join(', ')}</span>
+                  </div>
+
+                  <hr className="ticket-divider" />
+
+                  <div className="ticket-item grand-total-line">
+                    <span className="ticket-label total-label">Total Amount Paid</span>
+                    <span className="ticket-total-val">₹{b.amount}</span>
+                  </div>
+                </div>
+
+                <div className="ticket-footer">
+                  <div className="confirmed-box">
+                    <div className="confirmed-title">✓ Admission Confirmed</div>
+                    <p>Confirmed at {b.confirmedAt || 'Today'}</p>
+                    <p style={{ marginTop: '4px', fontSize: '12px' }}>Enjoy the show! 🍿</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="summary-action-btns" style={{ marginTop: '28px', textAlign: 'center' }}>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleBookAnother}
+            >
+              🍿 Book Another Movie
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="booking-card empty-booking-card">
+          <div className="empty-ticket-icon">🎟️</div>
+          <h2 className="empty-ticket-title">No Active or Past Bookings Found</h2>
+          <p className="empty-ticket-desc">
+            You don't have any booked cinema tickets yet. Pick a movie, choose a Coimbatore cinema venue, and reserve your seats.
+          </p>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => navigate('/movies')}
+          >
+            Browse Movies Catalog
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default SummaryPage;
+
+
+================================================================================
+FILE 23: src/App.jsx
+================================================================================
+
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+
+// Context Providers
+import { AuthProvider } from './context/AuthContext';
+import { BookingProvider } from './context/BookingContext';
+
+// Components
+import Header from './components/Header';
+import Footer from './components/Footer';
+import ProtectedRoute from './components/ProtectedRoute';
+
+// Pages
+import HomePage from './pages/HomePage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import MoviesPage from './pages/MoviesPage';
+import MovieDetailsPage from './pages/MovieDetailsPage';
+import BookingPage from './pages/BookingPage';
+import SummaryPage from './pages/SummaryPage';
+import NotFound from './pages/NotFound';
+
+import './App.css';
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <BookingProvider>
+          <div className="app-wrapper">
+            <Header />
+            <main className="main-content">
+              <Routes>
+                {/* Public Routes */}
+                <Route path="/"         element={<HomePage />}    />
+                <Route path="/login"    element={<LoginPage />}   />
+                <Route path="/register" element={<RegisterPage />} />
+
+                {/* Protected Routes (Authentication Required) */}
+                <Route
+                  path="/movies"
+                  element={
+                    <ProtectedRoute>
+                      <MoviesPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/movies/:id"
+                  element={
+                    <ProtectedRoute>
+                      <MovieDetailsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/booking"
+                  element={
+                    <ProtectedRoute>
+                      <BookingPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/summary"
+                  element={
+                    <ProtectedRoute>
+                      <SummaryPage />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* 404 Route */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </main>
+            <Footer />
+          </div>
+        </BookingProvider>
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}
+
+export default App;
+
+================================================================================
+                      END OF UNIT 4 EXPERIMENT 1 SOURCE CODE
+================================================================================

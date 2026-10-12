@@ -1,0 +1,1735 @@
+================================================================================
+          BOOKMYMOVIE - REACT CINEMA TICKET BOOKING WEB APPLICATION
+          UNIT 4 - EXPERIMENT 2 : COMPLETE SOURCE CODE ARCHIVE
+          Topic: Movie Booking State Management (Redux Toolkit & Middleware)
+          Stack: React 19 + Redux Toolkit + React Redux + Vite + Vanilla CSS
+          (Prepared for 2nd Year Engineering Practical Record Submission)
+================================================================================
+
+AIM:
+To design and implement global state management for the BookMyMovie ticket booking
+web application using Redux Toolkit, managing synchronized booking state across
+MovieList, SeatSelection, and Checkout components, dispatching actions for movie,
+theatre, date, showtime, seat selection/removal, and incorporating custom middleware
+for action audit logging, seat limits, and persistence.
+
+--------------------------------------------------------------------------------
+TABLE OF CONTENTS / FILE INDEX
+--------------------------------------------------------------------------------
+1.  src/redux/bookingSlice.js           --> Redux Toolkit Booking Slice & Reducers
+2.  src/redux/bookingMiddleware.js      --> Custom Redux Middleware (Audit & Validation)
+3.  src/redux/store.js                  --> Redux Store Configuration with Middleware
+4.  src/hooks/useBooking.js             --> Custom Hook (useSelector & useDispatch Bridge)
+5.  src/main.jsx                        --> Application Entry with Redux Provider
+6.  src/App.jsx                         --> Main Router & App Shell
+7.  src/components/MovieList.jsx        --> Movie List Component (Dispatches setMovie)
+8.  src/components/TheatreList.jsx      --> Coimbatore Theatres (Dispatches setTheatre)
+9.  src/components/ShowTiming.jsx       --> Dates & Showtimes (Dispatches setShowDate/Time)
+10. src/components/SeatSelection.jsx    --> 110-Seat Layout (toggleSeat & removeSeat)
+11. src/components/BookingSummary.jsx   --> Checkout Pass Component (Grand Total)
+12. src/pages/BookingPage.jsx           --> Booking Workflow Orchestrator
+13. src/pages/SummaryPage.jsx           --> Booking Confirmation & Digital Pass Page
+14. src/data/seatLayout.js              --> 110-Seat Tier Setup & Dynamic Pricing Calculator
+15. src/App.css                         --> Component Styles & Redux Action Chip Styling
+================================================================================
+
+
+================================================================================
+FILE 1: src/redux/bookingSlice.js
+================================================================================
+import { createSlice } from '@reduxjs/toolkit';
+import { calculateSeatsPriceBreakdown, SEAT_PRICES } from '../data/seatLayout.js';
+import { getAvailableBookingDates } from '../data/showtimes.js';
+
+const defaultDates = getAvailableBookingDates(7);
+
+const initialPricing = {
+  Regular: { count: 0, rate: SEAT_PRICES?.Regular || 150, total: 0, seats: [] },
+  Premium: { count: 0, rate: SEAT_PRICES?.Premium || 200, total: 0, seats: [] },
+  Recliner: { count: 0, rate: SEAT_PRICES?.Recliner || 300, total: 0, seats: [] },
+  totalAmount: 0,
+  totalSeats: 0,
+};
+
+const initialState = {
+  selectedMovie: null,
+  selectedTheatre: null,
+  selectedDate: defaultDates[0] || null,
+  selectedTime: null,
+  selectedSeats: [],
+  totalAmount: 0,
+  totalSeats: 0,
+  priceBreakdown: initialPricing,
+  bookingConfirmed: false,
+  bookingReference: null,
+  bookingError: null,
+  searchQuery: '',
+  theatreAreaFilter: 'All Areas',
+  theatreSearchQuery: '',
+};
+
+export const bookingSlice = createSlice({
+  name: 'booking',
+  initialState,
+  reducers: {
+    // 1. Action to select a movie and reset downstream selections
+    setMovie: (state, action) => {
+      state.selectedMovie = action.payload;
+      state.selectedTheatre = null;
+      state.selectedDate = defaultDates[0] || null;
+      state.selectedTime = null;
+      state.selectedSeats = [];
+      state.totalAmount = 0;
+      state.totalSeats = 0;
+      state.priceBreakdown = initialPricing;
+      state.bookingConfirmed = false;
+      state.bookingReference = null;
+      state.bookingError = null;
+    },
+
+    // 2. Action to select a cinema theatre
+    setTheatre: (state, action) => {
+      state.selectedTheatre = action.payload;
+      state.selectedTime = null;
+      state.selectedSeats = [];
+      state.totalAmount = 0;
+      state.totalSeats = 0;
+      state.priceBreakdown = initialPricing;
+      state.bookingConfirmed = false;
+      state.bookingReference = null;
+      state.bookingError = null;
+    },
+
+    // 3. Action to select booking calendar date
+    setShowDate: (state, action) => {
+      state.selectedDate = action.payload;
+      state.selectedTime = null;
+      state.selectedSeats = [];
+      state.totalAmount = 0;
+      state.totalSeats = 0;
+      state.priceBreakdown = initialPricing;
+      state.bookingConfirmed = false;
+      state.bookingReference = null;
+      state.bookingError = null;
+    },
+
+    // 4. Action to select show timing
+    setShowTime: (state, action) => {
+      state.selectedTime = action.payload;
+      state.selectedSeats = [];
+      state.totalAmount = 0;
+      state.totalSeats = 0;
+      state.priceBreakdown = initialPricing;
+      state.bookingConfirmed = false;
+      state.bookingReference = null;
+      state.bookingError = null;
+    },
+
+    // 5. Action to toggle seat selection and automatically recalculate price
+    toggleSeat: (state, action) => {
+      const seatId = action.payload;
+      const index = state.selectedSeats.indexOf(seatId);
+
+      if (index >= 0) {
+        state.selectedSeats.splice(index, 1);
+      } else {
+        state.selectedSeats.push(seatId);
+      }
+
+      const breakdown = calculateSeatsPriceBreakdown(state.selectedSeats);
+      state.priceBreakdown = breakdown;
+      state.totalAmount = breakdown.totalAmount;
+      state.totalSeats = breakdown.totalSeats;
+      state.bookingConfirmed = false;
+      state.bookingError = null;
+    },
+
+    // 6. Action to remove a specific seat and update grand total
+    removeSeat: (state, action) => {
+      const seatId = action.payload;
+      state.selectedSeats = state.selectedSeats.filter((s) => s !== seatId);
+
+      const breakdown = calculateSeatsPriceBreakdown(state.selectedSeats);
+      state.priceBreakdown = breakdown;
+      state.totalAmount = breakdown.totalAmount;
+      state.totalSeats = breakdown.totalSeats;
+      state.bookingConfirmed = false;
+      state.bookingError = null;
+    },
+
+    // 7. Action to update search filter
+    setSearchQuery: (state, action) => {
+      state.searchQuery = action.payload;
+    },
+
+    // 8. Actions to filter Coimbatore theatres
+    setTheatreAreaFilter: (state, action) => {
+      state.theatreAreaFilter = action.payload;
+    },
+
+    setTheatreSearchQuery: (state, action) => {
+      state.theatreSearchQuery = action.payload;
+    },
+
+    // 9. Action on successful booking confirmation
+    confirmBookingSuccess: (state, action) => {
+      state.bookingConfirmed = true;
+      state.bookingReference = action.payload;
+      state.bookingError = null;
+    },
+
+    // 10. Action to set booking validation error
+    setBookingError: (state, action) => {
+      state.bookingError = action.payload;
+    },
+
+    // 11. Action to reset entire booking state
+    clearBooking: (state) => {
+      state.selectedMovie = null;
+      state.selectedTheatre = null;
+      state.selectedDate = defaultDates[0] || null;
+      state.selectedTime = null;
+      state.selectedSeats = [];
+      state.totalAmount = 0;
+      state.totalSeats = 0;
+      state.priceBreakdown = initialPricing;
+      state.bookingConfirmed = false;
+      state.bookingReference = null;
+      state.bookingError = null;
+      state.searchQuery = '';
+      state.theatreAreaFilter = 'All Areas';
+      state.theatreSearchQuery = '';
+    },
+  },
+});
+
+export const {
+  setMovie,
+  setTheatre,
+  setShowDate,
+  setShowTime,
+  toggleSeat,
+  removeSeat,
+  setSearchQuery,
+  setTheatreAreaFilter,
+  setTheatreSearchQuery,
+  confirmBookingSuccess,
+  setBookingError,
+  clearBooking,
+} = bookingSlice.actions;
+
+export default bookingSlice.reducer;
+
+
+================================================================================
+FILE 2: src/redux/bookingMiddleware.js
+================================================================================
+/**
+ * Custom Redux Middleware for Movie Booking Actions:
+ * - Logs action dispatch events with timestamp and state previews.
+ * - Validates booking constraints (e.g., maximum 10 seats per transaction).
+ * - Synchronizes active booking progress to browser storage for audit and recovery.
+ */
+export const bookingMiddleware = (store) => (next) => (action) => {
+  // 1. Seat limit enforcement rule (Max 10 seats per booking)
+  if (action.type === 'booking/toggleSeat') {
+    const currentState = store.getState().booking;
+    const seatId = action.payload;
+    const isAlreadySelected = currentState.selectedSeats.includes(seatId);
+
+    if (!isAlreadySelected && currentState.selectedSeats.length >= 10) {
+      alert('Maximum seat limit reached! You can select up to 10 seats per booking.');
+      return; // Intercept and block action from reaching the reducer
+    }
+  }
+
+  // 2. Dispatch action through reducer pipeline
+  const result = next(action);
+
+  // 3. Action audit and logging
+  if (typeof action.type === 'string' && action.type.startsWith('booking/')) {
+    const nextState = store.getState().booking;
+    console.group(`[Redux Booking Middleware] Action: ${action.type}`);
+    console.log('Timestamp:', new Date().toLocaleTimeString());
+    console.log('Action Payload:', action.payload);
+    console.log('Selected Seats:', nextState.selectedSeats);
+    console.log('Calculated Grand Total: ₹' + nextState.totalAmount);
+    console.groupEnd();
+  }
+
+  // 4. Persistence handling for confirmed bookings
+  if (action.type === 'booking/confirmBookingSuccess') {
+    const finalState = store.getState().booking;
+    const passData = {
+      bookingReference: action.payload,
+      movie: finalState.selectedMovie?.title,
+      theatre: finalState.selectedTheatre?.name,
+      date: finalState.selectedDate?.displayLabel || finalState.selectedDate,
+      time: finalState.selectedTime?.time || finalState.selectedTime,
+      seats: finalState.selectedSeats,
+      totalAmount: finalState.totalAmount,
+      timestamp: new Date().toISOString(),
+    };
+    try {
+      localStorage.setItem('bm_redux_confirmed_pass', JSON.stringify(passData));
+    } catch (err) {
+      console.warn('Storage sync failed in bookingMiddleware:', err);
+    }
+  }
+
+  return result;
+};
+
+export default bookingMiddleware;
+
+
+================================================================================
+FILE 3: src/redux/store.js
+================================================================================
+import { configureStore } from '@reduxjs/toolkit';
+import bookingReducer from './bookingSlice';
+import { bookingMiddleware } from './bookingMiddleware';
+
+export const store = configureStore({
+  reducer: {
+    booking: bookingReducer,
+  },
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({
+      serializableCheck: false,
+    }).concat(bookingMiddleware),
+});
+
+export default store;
+
+
+================================================================================
+FILE 4: src/hooks/useBooking.js
+================================================================================
+import { useState, useCallback, useMemo } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import {
+  setMovie,
+  setTheatre,
+  setShowDate,
+  setShowTime,
+  toggleSeat,
+  removeSeat,
+  setSearchQuery,
+  setTheatreAreaFilter as setReduxTheatreAreaFilter,
+  setTheatreSearchQuery as setReduxTheatreSearchQuery,
+  confirmBookingSuccess,
+  setBookingError,
+  clearBooking,
+} from '../redux/bookingSlice';
+import { COIMBATORE_THEATRES } from '../data/theatres.js';
+import { getAvailableBookingDates } from '../data/showtimes.js';
+import { ROW_CONFIG, SEAT_PRICES, TOTAL_SEATS_PER_SCREEN } from '../data/seatLayout.js';
+import {
+  buildShowKey,
+  getBookedSeatsForShow,
+  confirmNewBooking,
+  getAllSavedBookings,
+} from '../services/bookingService.js';
+import { FALLBACK_MOVIES_2026 } from '../data/fallbackMovies.js';
+
+export function useBooking() {
+  const dispatch = useDispatch();
+  const bookingState = useSelector((state) => state.booking);
+
+  // Available 8 days (Today + 7 days)
+  const availableDates = useMemo(() => getAvailableBookingDates(7), []);
+  const selectedDate = bookingState.selectedDate || availableDates[0];
+
+  // Saved bookings from localStorage (reactive state)
+  const [allBookings, setAllBookings] = useState(() => getAllSavedBookings());
+
+  const lastBooking = useMemo(() => {
+    return allBookings && allBookings.length > 0 ? allBookings[0] : null;
+  }, [allBookings]);
+
+  // Current screening key based on Redux selection
+  const currentShowKey = useMemo(() => {
+    if (
+      !bookingState.selectedMovie ||
+      !bookingState.selectedTheatre ||
+      !selectedDate ||
+      !bookingState.selectedTime
+    ) {
+      return null;
+    }
+    return buildShowKey(
+      bookingState.selectedMovie.id,
+      bookingState.selectedTheatre.id,
+      selectedDate.iso || selectedDate,
+      bookingState.selectedTime.id || bookingState.selectedTime.time
+    );
+  }, [
+    bookingState.selectedMovie,
+    bookingState.selectedTheatre,
+    selectedDate,
+    bookingState.selectedTime,
+  ]);
+
+  // Booked seats for current show
+  const bookedSeatsForCurrentShow = useMemo(() => {
+    if (!currentShowKey) return [];
+    return getBookedSeatsForShow(currentShowKey, bookingState.bookingConfirmed);
+  }, [currentShowKey, bookingState.bookingConfirmed]);
+
+  // Filter movies by search query
+  const filteredMovies = useMemo(() => {
+    const q = (bookingState.searchQuery || '').trim().toLowerCase();
+    if (!q) return FALLBACK_MOVIES_2026;
+    return FALLBACK_MOVIES_2026.filter((movie) =>
+      movie.title.toLowerCase().includes(q)
+    );
+  }, [bookingState.searchQuery]);
+
+  // Redux Action Dispatchers
+  const handleSelectMovie = useCallback(
+    (movie) => {
+      dispatch(setMovie(movie));
+    },
+    [dispatch]
+  );
+
+  const handleSelectTheatre = useCallback(
+    (theatre) => {
+      dispatch(setTheatre(theatre));
+    },
+    [dispatch]
+  );
+
+  const handleSelectDate = useCallback(
+    (date) => {
+      dispatch(setShowDate(date));
+    },
+    [dispatch]
+  );
+
+  const handleSelectTime = useCallback(
+    (timing) => {
+      dispatch(setShowTime(timing));
+    },
+    [dispatch]
+  );
+
+  const handleToggleSeat = useCallback(
+    (seatId) => {
+      if (bookedSeatsForCurrentShow.includes(seatId)) {
+        return false;
+      }
+      dispatch(toggleSeat(seatId));
+      return true;
+    },
+    [dispatch, bookedSeatsForCurrentShow]
+  );
+
+  const handleRemoveSeat = useCallback(
+    (seatId) => {
+      dispatch(removeSeat(seatId));
+    },
+    [dispatch]
+  );
+
+  const handleSearchChange = useCallback(
+    (value) => {
+      dispatch(setSearchQuery(value));
+    },
+    [dispatch]
+  );
+
+  const setTheatreAreaFilter = useCallback(
+    (area) => {
+      dispatch(setReduxTheatreAreaFilter(area));
+    },
+    [dispatch]
+  );
+
+  const setTheatreSearchQuery = useCallback(
+    (query) => {
+      dispatch(setReduxTheatreSearchQuery(query));
+    },
+    [dispatch]
+  );
+
+  const handleConfirmBooking = useCallback(() => {
+    if (
+      !bookingState.selectedMovie ||
+      !bookingState.selectedTheatre ||
+      !selectedDate ||
+      !bookingState.selectedTime ||
+      bookingState.selectedSeats.length === 0
+    ) {
+      dispatch(
+        setBookingError('Please complete all booking steps (Theatre, Date, Showtime, and at least 1 Seat).')
+      );
+      return false;
+    }
+
+    try {
+      const record = confirmNewBooking({
+        movie: bookingState.selectedMovie,
+        theatre: bookingState.selectedTheatre,
+        date: selectedDate,
+        showtime: bookingState.selectedTime,
+        seats: bookingState.selectedSeats,
+      });
+
+      dispatch(confirmBookingSuccess(record.bookingId));
+      setAllBookings(getAllSavedBookings());
+      return true;
+    } catch (err) {
+      dispatch(
+        setBookingError(err.message || 'Unable to confirm booking. Please try again.')
+      );
+      return false;
+    }
+  }, [
+    dispatch,
+    bookingState.selectedMovie,
+    bookingState.selectedTheatre,
+    selectedDate,
+    bookingState.selectedTime,
+    bookingState.selectedSeats,
+  ]);
+
+  const handleResetBooking = useCallback(() => {
+    dispatch(clearBooking());
+  }, [dispatch]);
+
+  return {
+    // Redux State
+    selectedMovie: bookingState.selectedMovie,
+    selectedTheatre: bookingState.selectedTheatre,
+    selectedDate,
+    selectedTime: bookingState.selectedTime,
+    selectedSeats: bookingState.selectedSeats,
+    totalAmount: bookingState.totalAmount,
+    totalSeats: bookingState.totalSeats,
+    priceBreakdown: bookingState.priceBreakdown,
+    bookingConfirmed: bookingState.bookingConfirmed,
+    activeBookingReference: bookingState.bookingReference,
+    bookingError: bookingState.bookingError,
+    searchQuery: bookingState.searchQuery,
+    theatreAreaFilter: bookingState.theatreAreaFilter || 'All Areas',
+    theatreSearchQuery: bookingState.theatreSearchQuery || '',
+
+    // Static & Derived
+    theatres: COIMBATORE_THEATRES,
+    availableDates,
+    currentShowKey,
+    bookedSeatsForCurrentShow,
+    filteredMovies,
+    seatPrices: SEAT_PRICES,
+    ticketPrice: SEAT_PRICES.Regular,
+    rowConfig: ROW_CONFIG,
+    totalSeatsPerScreen: TOTAL_SEATS_PER_SCREEN,
+    allBookings,
+    lastBooking,
+
+    // Dispatch Handlers
+    handleSelectMovie,
+    handleSelectTheatre,
+    handleSelectDate,
+    handleSelectTime,
+    handleToggleSeat,
+    handleRemoveSeat,
+    handleSearchChange,
+    handleConfirmBooking,
+    handleResetBooking,
+    setTheatreAreaFilter,
+    setTheatreSearchQuery,
+  };
+}
+
+export default useBooking;
+
+
+================================================================================
+FILE 5: src/main.jsx
+================================================================================
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import { Provider } from 'react-redux'
+import { store } from './redux/store'
+import './index.css'
+import App from './App.jsx'
+
+createRoot(document.getElementById('root')).render(
+  <StrictMode>
+    <Provider store={store}>
+      <App />
+    </Provider>
+  </StrictMode>,
+)
+
+
+================================================================================
+FILE 6: src/App.jsx
+================================================================================
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+
+import { AuthProvider } from './context/AuthContext';
+import Header from './components/Header';
+import Footer from './components/Footer';
+import ProtectedRoute from './components/ProtectedRoute';
+
+import HomePage from './pages/HomePage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import MoviesPage from './pages/MoviesPage';
+import MovieDetailsPage from './pages/MovieDetailsPage';
+import BookingPage from './pages/BookingPage';
+import SummaryPage from './pages/SummaryPage';
+import NotFound from './pages/NotFound';
+
+import './App.css';
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <div className="app-wrapper">
+          <Header />
+          <main className="main-content">
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/"         element={<HomePage />}    />
+              <Route path="/login"    element={<LoginPage />}   />
+              <Route path="/register" element={<RegisterPage />} />
+
+              {/* Protected Routes (Authentication Required) */}
+              <Route
+                path="/movies"
+                element={
+                  <ProtectedRoute>
+                    <MoviesPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/movies/:id"
+                element={
+                  <ProtectedRoute>
+                    <MovieDetailsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/booking"
+                element={
+                  <ProtectedRoute>
+                    <BookingPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/summary"
+                element={
+                  <ProtectedRoute>
+                    <SummaryPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* 404 Route */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </main>
+          <Footer />
+        </div>
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}
+
+export default App;
+
+
+================================================================================
+FILE 7: src/components/MovieList.jsx
+================================================================================
+import React from 'react';
+import MovieCard from './MovieCard';
+import Loading from './Loading';
+import ErrorMessage from './ErrorMessage';
+import EmptyState from './EmptyState';
+import useBooking from '../hooks/useBooking';
+
+function MovieList({
+  movies = [],
+  isLoading = false,
+  error = null,
+  onRetry,
+  onReset,
+  onSelectAndContinue,
+}) {
+  const { selectedMovie, handleSelectMovie } = useBooking();
+
+  if (isLoading) {
+    return <Loading type="skeleton" count={8} />;
+  }
+
+  if (error) {
+    return (
+      <ErrorMessage
+        title="Failed to Load Movies"
+        message={error}
+        onRetry={onRetry}
+        retryText="Retry Loading"
+      />
+    );
+  }
+
+  if (!movies || movies.length === 0) {
+    return (
+      <EmptyState
+        title="No Movies Found"
+        message="No cinema titles matched your current search query or genre filter. Try adjusting your search."
+        onReset={onReset}
+      />
+    );
+  }
+
+  const handleMovieSelect = (movie) => {
+    handleSelectMovie(movie);
+    if (onSelectAndContinue) {
+      onSelectAndContinue(movie);
+    }
+  };
+
+  return (
+    <section className="movie-list-section" aria-label="Movies Collection">
+      <div className="movies-grid">
+        {movies.map((movie) => {
+          const isSelected = selectedMovie && String(selectedMovie.id) === String(movie.id);
+          return (
+            <MovieCard
+              key={movie.id}
+              movie={movie}
+              isSelected={isSelected}
+              onSelect={handleMovieSelect}
+            />
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+export default MovieList;
+
+
+================================================================================
+FILE 8: src/components/TheatreList.jsx
+================================================================================
+import React, { useState, useMemo } from 'react';
+import useBooking from '../hooks/useBooking';
+import { COIMBATORE_THEATRES, getCoimbatoreAreas } from '../data/theatres.js';
+
+function TheatreList() {
+  const { selectedTheatre, handleSelectTheatre } = useBooking();
+  const [theatreAreaFilter, setTheatreAreaFilter] = useState('All Areas');
+  const [theatreSearchQuery, setTheatreSearchQuery] = useState('');
+
+  const areas = useMemo(() => getCoimbatoreAreas(), []);
+
+  const filteredTheatres = useMemo(() => {
+    return COIMBATORE_THEATRES.filter((theatre) => {
+      const matchesArea =
+        theatreAreaFilter === 'All Areas' ||
+        theatre.area.toLowerCase() === theatreAreaFilter.toLowerCase();
+
+      const q = theatreSearchQuery.trim().toLowerCase();
+      const matchesSearch =
+        !q ||
+        theatre.name.toLowerCase().includes(q) ||
+        theatre.area.toLowerCase().includes(q) ||
+        theatre.address.toLowerCase().includes(q) ||
+        theatre.landmark.toLowerCase().includes(q);
+
+      return matchesArea && matchesSearch;
+    });
+  }, [theatreAreaFilter, theatreSearchQuery]);
+
+  return (
+    <div className="theatre-selection-container">
+      <div className="theatre-filter-toolbar">
+        <div className="theatre-search-box">
+          <span className="search-icon">🔍</span>
+          <input
+            type="text"
+            className="theatre-search-input"
+            value={theatreSearchQuery}
+            onChange={(e) => setTheatreSearchQuery(e.target.value)}
+            placeholder="Search Coimbatore theatres by name, area, or road..."
+          />
+          {theatreSearchQuery && (
+            <button
+              type="button"
+              className="clear-search-btn"
+              onClick={() => setTheatreSearchQuery('')}
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        <div className="area-filter-pills">
+          {areas.map((area) => (
+            <button
+              key={area}
+              type="button"
+              onClick={() => setTheatreAreaFilter(area)}
+              className={`area-pill ${theatreAreaFilter === area ? 'active' : ''}`}
+            >
+              {area}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="theatres-grid">
+        {filteredTheatres.map((theatre) => {
+          const isSelected = selectedTheatre?.id === theatre.id;
+          return (
+            <div
+              key={theatre.id}
+              onClick={() => handleSelectTheatre(theatre)}
+              className={`theatre-card ${isSelected ? 'selected' : ''}`}
+            >
+              <div className="theatre-card-top">
+                <span className="theatre-name">{theatre.name}</span>
+                <span className="theatre-area-tag">{theatre.area}</span>
+              </div>
+              <p className="theatre-address">{theatre.address}</p>
+              <div className="theatre-meta-footer">
+                <span className="theatre-screens">{theatre.screens}</span>
+                <button type="button" className={`theatre-select-btn ${isSelected ? 'selected' : ''}`}>
+                  {isSelected ? '✓ Selected' : 'Select'}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export default TheatreList;
+
+
+================================================================================
+FILE 9: src/components/ShowTiming.jsx
+================================================================================
+import React, { useMemo } from 'react';
+import useBooking from '../hooks/useBooking';
+import { getShowtimesForTheatre } from '../data/showtimes.js';
+
+function ShowTiming() {
+  const {
+    selectedTheatre,
+    selectedDate,
+    handleSelectDate,
+    selectedTime,
+    handleSelectTime,
+    availableDates,
+  } = useBooking();
+
+  const showtimes = useMemo(() => {
+    return getShowtimesForTheatre(selectedTheatre?.id, selectedDate?.iso);
+  }, [selectedTheatre, selectedDate]);
+
+  return (
+    <div className="show-timing-container">
+      {/* Date Selection */}
+      <div className="timing-block">
+        <div className="timing-section-header">
+          <div className="timing-section-label">
+            <span>📅</span>
+            <span>Select Date (Today up to 7 Days Ahead)</span>
+          </div>
+          {selectedDate && (
+            <span className="current-date-pill">Selected: {selectedDate.displayLabel}</span>
+          )}
+        </div>
+
+        <div className="dates-grid">
+          {availableDates.map((d) => {
+            const isSelected = selectedDate?.iso === d.iso;
+            return (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => handleSelectDate(d)}
+                className={`date-chip ${isSelected ? 'selected' : ''}`}
+              >
+                <span className="date-day">{d.dayName}</span>
+                <span className="date-num">{d.dayNum}</span>
+                <span className="date-month">{d.monthStr}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Showtime Selection */}
+      <div className="timing-block" style={{ marginTop: '22px' }}>
+        <div className="timing-section-header">
+          <div className="timing-section-label">
+            <span>⏰</span>
+            <span>Select Show Timing</span>
+          </div>
+          {selectedTime && (
+            <span className="current-date-pill">Selected: {selectedTime.time}</span>
+          )}
+        </div>
+
+        <div className="timings-grid">
+          {showtimes.map((timing) => {
+            const isSelected = selectedTime?.id === timing.id;
+            const isPast = Boolean(timing.isPast);
+
+            return (
+              <button
+                key={timing.id}
+                type="button"
+                disabled={isPast}
+                onClick={() => handleSelectTime(timing)}
+                className={`time-chip ${isSelected ? 'selected' : ''} ${isPast ? 'past-disabled' : ''}`}
+              >
+                <span className="time-value">{timing.time}</span>
+                <span className="time-label">{timing.label}</span>
+                {isPast ? (
+                  <span className="time-status past">Past Show</span>
+                ) : (
+                  <span className="time-status available">Available</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default ShowTiming;
+
+
+================================================================================
+FILE 10: src/components/SeatSelection.jsx
+================================================================================
+import React, { useState } from 'react';
+import useBooking from '../hooks/useBooking';
+import { ROW_CONFIG, getSeatCategory, getSeatPrice } from '../data/seatLayout.js';
+
+function SeatSelection() {
+  const {
+    selectedSeats,
+    handleToggleSeat,
+    handleRemoveSeat,
+    bookedSeatsForCurrentShow,
+    priceBreakdown,
+    totalAmount,
+    selectedMovie,
+    selectedTheatre,
+    selectedDate,
+    selectedTime,
+  } = useBooking();
+
+  const [blockedSeatWarning, setBlockedSeatWarning] = useState(null);
+
+  const handleSeatClick = (seatId) => {
+    if (bookedSeatsForCurrentShow.includes(seatId)) {
+      setBlockedSeatWarning(`⚠️ Seat ${seatId} is already booked for this screening.`);
+      setTimeout(() => setBlockedSeatWarning(null), 3000);
+      return;
+    }
+
+    setBlockedSeatWarning(null);
+    handleToggleSeat(seatId);
+  };
+
+  const isSelectionDisabled = !selectedMovie || !selectedTheatre || !selectedDate || !selectedTime;
+
+  return (
+    <div className="seat-selection-container">
+      {/* Context reminder header */}
+      <div className="seat-selection-header-banner">
+        <div className="screening-meta-summary">
+          <span className="meta-point">🎬 <strong>{selectedMovie?.title || 'Selected Movie'}</strong></span>
+          <span className="meta-sep">•</span>
+          <span className="meta-point">🏛️ <strong>{selectedTheatre?.name || 'Selected Theatre'}</strong></span>
+          <span className="meta-sep">•</span>
+          <span className="meta-point">📅 <strong>{selectedDate?.displayLabel || 'Date'}</strong></span>
+          <span className="meta-sep">•</span>
+          <span className="meta-point">⏰ <strong>{selectedTime?.time || 'Showtime'}</strong></span>
+        </div>
+      </div>
+
+      {isSelectionDisabled && (
+        <div className="seat-disabled-notice">
+          👉 <em>Please choose a Theatre, Date, and Showtime above before picking your seats.</em>
+        </div>
+      )}
+
+      {blockedSeatWarning && (
+        <div className="seat-warning-toast" role="alert">
+          {blockedSeatWarning}
+        </div>
+      )}
+
+      {/* Screen Visualization */}
+      <div className="screen-container">
+        <div className="screen-curve"></div>
+        <div className="screen-text">
+          <span>ALL EYES THIS WAY • 4K LASER CINEMA SCREEN</span>
+        </div>
+      </div>
+
+      {/* 110-Seat Auditorium Layout */}
+      <div className="cinema-auditorium">
+        {ROW_CONFIG.map(({ row, category, price, seatsCount }) => (
+          <div key={row} className="seat-row-wrapper">
+            <span className={`row-tier-pill tier-${category.toLowerCase()}`}>
+              {category.slice(0, 3)}
+            </span>
+            <span className="row-letter-label">{row}</span>
+
+            <div className="seat-row-seats">
+              {/* Left Block: Seats 1 to 5 */}
+              <div className="seats-block left-block">
+                {Array.from({ length: 5 }, (_, i) => i + 1).map((num) => {
+                  const seatId = `${row}${num}`;
+                  const isBooked = bookedSeatsForCurrentShow.includes(seatId);
+                  const isSelected = selectedSeats.includes(seatId);
+
+                  return (
+                    <button
+                      key={seatId}
+                      type="button"
+                      onClick={() => handleSeatClick(seatId)}
+                      disabled={isBooked || isSelectionDisabled}
+                      className={`seat-box tier-${category.toLowerCase()} ${
+                        isBooked ? 'booked' : isSelected ? 'selected' : 'available'
+                      }`}
+                      title={isBooked ? `Seat ${seatId} Booked` : `Seat ${seatId} (₹${price})`}
+                    >
+                      <span className="seat-inner-num">{num}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Central Walking Aisle */}
+              <div className="aisle-spacer" aria-hidden="true">
+                <span className="aisle-label">AISLE</span>
+              </div>
+
+              {/* Right Block: Seats 6 to 11 */}
+              <div className="seats-block right-block">
+                {Array.from({ length: seatsCount - 5 }, (_, i) => i + 6).map((num) => {
+                  const seatId = `${row}${num}`;
+                  const isBooked = bookedSeatsForCurrentShow.includes(seatId);
+                  const isSelected = selectedSeats.includes(seatId);
+
+                  return (
+                    <button
+                      key={seatId}
+                      type="button"
+                      onClick={() => handleSeatClick(seatId)}
+                      disabled={isBooked || isSelectionDisabled}
+                      className={`seat-box tier-${category.toLowerCase()} ${
+                        isBooked ? 'booked' : isSelected ? 'selected' : 'available'
+                      }`}
+                      title={isBooked ? `Seat ${seatId} Booked` : `Seat ${seatId} (₹${price})`}
+                    >
+                      <span className="seat-inner-num">{num}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <span className="row-letter-label right-side">{row}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Legend Panel */}
+      <div className="seats-legend-panel">
+        <div className="legend-group">
+          <span className="legend-group-title">Status:</span>
+          <div className="legend-item">
+            <span className="legend-box sample-available"></span>
+            <span>Available</span>
+          </div>
+          <div className="legend-item">
+            <span className="legend-box sample-selected"></span>
+            <span>Selected</span>
+          </div>
+          <div className="legend-item">
+            <span className="legend-box sample-booked">✕</span>
+            <span>Booked</span>
+          </div>
+        </div>
+
+        <div className="legend-group">
+          <span className="legend-group-title">Categories:</span>
+          <div className="legend-item">
+            <span className="category-dot tier-regular"></span>
+            <span>Regular (A–E) • ₹150</span>
+          </div>
+          <div className="legend-item">
+            <span className="category-dot tier-premium"></span>
+            <span>Premium (F–H) • ₹200</span>
+          </div>
+          <div className="legend-item">
+            <span className="category-dot tier-recliner"></span>
+            <span>Recliner (I–J) • ₹300</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Real-Time Redux Dynamic Breakdown & Seat Removal */}
+      {selectedSeats.length > 0 && (
+        <div className="seat-selection-summary-card">
+          <div className="selection-summary-top">
+            <div className="selected-seats-chip-list">
+              <span className="chips-title">Chosen Seats ({selectedSeats.length}):</span>
+              {selectedSeats.map((seatId) => (
+                <span key={seatId} className={`chosen-seat-chip chip-${getSeatCategory(seatId).toLowerCase()}`}>
+                  <span>{seatId} <small>({getSeatCategory(seatId)} ₹{getSeatPrice(seatId)})</small></span>
+                  <button
+                    type="button"
+                    className="remove-seat-btn"
+                    title={`Remove seat ${seatId}`}
+                    onClick={() => handleRemoveSeat(seatId)}
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
+
+            <div className="selection-grand-total">
+              <span className="grand-total-label">Subtotal</span>
+              <span className="grand-total-amount">₹{totalAmount}</span>
+            </div>
+          </div>
+
+          <div className="category-pricing-breakdown-row">
+            {priceBreakdown.Regular.count > 0 && (
+              <span className="tier-breakdown-tag">
+                Regular: {priceBreakdown.Regular.count} × ₹150 = ₹{priceBreakdown.Regular.total}
+              </span>
+            )}
+            {priceBreakdown.Premium.count > 0 && (
+              <span className="tier-breakdown-tag">
+                Premium: {priceBreakdown.Premium.count} × ₹200 = ₹{priceBreakdown.Premium.total}
+              </span>
+            )}
+            {priceBreakdown.Recliner.count > 0 && (
+              <span className="tier-breakdown-tag">
+                Recliner: {priceBreakdown.Recliner.count} × ₹300 = ₹{priceBreakdown.Recliner.total}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default SeatSelection;
+
+
+================================================================================
+FILE 11: src/components/BookingSummary.jsx
+================================================================================
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import useBooking from '../hooks/useBooking';
+
+function BookingSummary() {
+  const navigate = useNavigate();
+  const {
+    selectedMovie,
+    selectedTheatre,
+    selectedDate,
+    selectedTime,
+    selectedSeats,
+    priceBreakdown,
+    totalAmount,
+    bookingConfirmed,
+    activeBookingReference,
+    bookingError,
+    handleConfirmBooking,
+    handleResetBooking,
+  } = useBooking();
+
+  const isReady =
+    selectedMovie && selectedTheatre && selectedDate && selectedTime && selectedSeats.length > 0;
+
+  const handleCancel = () => {
+    navigate('/booking');
+  };
+
+  const handleStartNewBooking = () => {
+    handleResetBooking();
+    navigate('/movies');
+  };
+
+  return (
+    <div className="ticket-wrapper">
+      <div className="ticket-card coimbatore-ticket">
+        {/* Ticket Header */}
+        <div className="ticket-header">
+          <div className="ticket-brand-row">
+            <span className="ticket-brand-name">🎟️ BookMyMovie</span>
+            <span className="ticket-city-badge">Coimbatore Edition</span>
+          </div>
+          <h3>CINEMA ADMISSION PASS</h3>
+          <p className="ticket-subtext">Verified Multiplex Reserved Seating</p>
+
+          {activeBookingReference && (
+            <div className="ticket-ref-banner">
+              <span className="ref-label">BOOKING REF:</span>
+              <span className="ref-code">{activeBookingReference}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Ticket Body */}
+        <div className="ticket-body">
+          <div className="ticket-movie-row">
+            {selectedMovie?.poster && (
+              <img
+                src={selectedMovie.poster}
+                alt={selectedMovie.title}
+                className="ticket-movie-poster"
+              />
+            )}
+            <div className="ticket-movie-info">
+              <div className="ticket-movie-title">{selectedMovie?.title || '—'}</div>
+              <div className="ticket-movie-meta">
+                <span>{selectedMovie?.language}</span>
+                {selectedMovie?.category && <span> • {selectedMovie.category} Cinema</span>}
+                {selectedMovie?.year && <span> • {selectedMovie.year}</span>}
+              </div>
+            </div>
+          </div>
+
+          <hr className="ticket-divider" />
+
+          <div className="ticket-item">
+            <span className="ticket-label">Cinema Venue</span>
+            <span className="ticket-val highlight-venue">
+              {selectedTheatre ? `${selectedTheatre.name} (${selectedTheatre.area})` : '—'}
+            </span>
+          </div>
+
+          <hr className="ticket-divider" />
+
+          <div className="ticket-meta-grid-2col">
+            <div className="ticket-item">
+              <span className="ticket-label">Date</span>
+              <span className="ticket-val highlight-val">
+                {selectedDate ? selectedDate.displayLabel || selectedDate : '—'}
+              </span>
+            </div>
+
+            <div className="ticket-item">
+              <span className="ticket-label">Showtime</span>
+              <span className="ticket-val highlight-val">
+                {selectedTime ? `${selectedTime.time} (${selectedTime.label})` : '—'}
+              </span>
+            </div>
+          </div>
+
+          <hr className="ticket-divider" />
+
+          <div className="ticket-item">
+            <span className="ticket-label">Reserved Seats ({selectedSeats.length})</span>
+            <span className="ticket-val seats-highlight">
+              {selectedSeats.length > 0 ? selectedSeats.join(', ') : 'None'}
+            </span>
+          </div>
+
+          {/* Pricing Details */}
+          <div className="ticket-item price-breakdown-box">
+            <span className="ticket-label">Category Breakdown</span>
+            <div className="ticket-pricing-list">
+              {priceBreakdown.Regular.count > 0 && (
+                <div className="tier-price-line">
+                  <span>Regular Seats</span>
+                  <span>{priceBreakdown.Regular.count} × ₹150 = <strong>₹{priceBreakdown.Regular.total}</strong></span>
+                </div>
+              )}
+              {priceBreakdown.Premium.count > 0 && (
+                <div className="tier-price-line">
+                  <span>Premium Seats</span>
+                  <span>{priceBreakdown.Premium.count} × ₹200 = <strong>₹{priceBreakdown.Premium.total}</strong></span>
+                </div>
+              )}
+              {priceBreakdown.Recliner.count > 0 && (
+                <div className="tier-price-line">
+                  <span>Recliner Seats</span>
+                  <span>{priceBreakdown.Recliner.count} × ₹300 = <strong>₹{priceBreakdown.Recliner.total}</strong></span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <hr className="ticket-divider" />
+
+          <div className="ticket-item grand-total-line">
+            <span className="ticket-label total-label">Total Amount Payable</span>
+            <span className="ticket-total-val">₹{totalAmount}</span>
+          </div>
+        </div>
+
+        {bookingError && (
+          <div className="ticket-error-alert" role="alert">
+            ⚠️ {bookingError}
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="ticket-footer">
+          {!bookingConfirmed ? (
+            <div className="ticket-action-buttons">
+              <button
+                type="button"
+                onClick={handleConfirmBooking}
+                disabled={!isReady}
+                className="btn-primary confirm-booking-btn"
+              >
+                <span>Confirm &amp; Book Tickets</span>
+                <span>(₹{totalAmount})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="btn-secondary cancel-booking-btn"
+              >
+                ← Back to Modify Seats
+              </button>
+            </div>
+          ) : (
+            <div className="confirmed-box">
+              <div className="confirmed-icon">✓</div>
+              <div className="confirmed-title">Booking Confirmed Successfully!</div>
+              <p>Your seats are secured at {selectedTheatre?.name}.</p>
+              <div className="confirmed-ref-badge">
+                Reference Code: <strong>{activeBookingReference}</strong>
+              </div>
+              <div className="post-confirm-actions">
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleStartNewBooking}
+                >
+                  🍿 Book Another Movie
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default BookingSummary;
+
+
+================================================================================
+FILE 12: src/pages/BookingPage.jsx
+================================================================================
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import useBooking from '../hooks/useBooking';
+import TheatreList from '../components/TheatreList';
+import ShowTiming from '../components/ShowTiming';
+import SeatSelection from '../components/SeatSelection';
+
+function BookingPage() {
+  const navigate = useNavigate();
+  const {
+    selectedMovie,
+    selectedTheatre,
+    selectedDate,
+    selectedTime,
+    selectedSeats,
+    totalAmount,
+    priceBreakdown,
+  } = useBooking();
+
+  const canProceed =
+    selectedMovie && selectedTheatre && selectedDate && selectedTime && selectedSeats.length > 0;
+
+  const getValidationMessage = () => {
+    if (!selectedMovie) return '👉 Please select a movie from the Movies page first.';
+    if (!selectedTheatre) return '👉 Step 2: Please choose a Coimbatore cinema venue above to continue.';
+    if (!selectedDate) return '👉 Step 3: Please choose your preferred booking date.';
+    if (!selectedTime) return '👉 Step 3: Please choose a showtime to view available seats.';
+    if (selectedSeats.length === 0) return '👉 Step 4: Please pick at least 1 cinema seat to continue.';
+    return null;
+  };
+
+  const validationMessage = getValidationMessage();
+
+  return (
+    <div className="booking-page">
+      <div className="page-header">
+        <div className="coimbatore-tag-badge">
+          <span>🏛️ Coimbatore Multiplex Reserved Seating</span>
+        </div>
+        <h1 className="page-title">Cinema Ticket &amp; Seat Booking</h1>
+        <p className="page-subtitle">
+          Select verified Coimbatore theatres, show dates, showtimes, and reserved seats across 110-seat screens
+        </p>
+
+        {/* Step Progress Tracker */}
+        <div className="booking-step-tracker" aria-label="Booking steps">
+          <div className={`step-item ${selectedMovie ? 'done' : 'active'}`}>
+            <span className="step-circle">{selectedMovie ? '✓' : '1'}</span>
+            <span className="step-label">1. Movie</span>
+          </div>
+          <div className="step-connector"></div>
+
+          <div className={`step-item ${selectedTheatre ? 'done' : selectedMovie ? 'active' : ''}`}>
+            <span className="step-circle">{selectedTheatre ? '✓' : '2'}</span>
+            <span className="step-label">2. Theatre</span>
+          </div>
+          <div className="step-connector"></div>
+
+          <div className={`step-item ${selectedDate && selectedTime ? 'done' : selectedTheatre ? 'active' : ''}`}>
+            <span className="step-circle">{selectedDate && selectedTime ? '✓' : '3'}</span>
+            <span className="step-label">3. Date &amp; Time</span>
+          </div>
+          <div className="step-connector"></div>
+
+          <div className={`step-item ${selectedSeats.length > 0 ? 'done' : selectedTime ? 'active' : ''}`}>
+            <span className="step-circle">{selectedSeats.length > 0 ? '✓' : '4'}</span>
+            <span className="step-label">4. Seats</span>
+          </div>
+          <div className="step-connector"></div>
+
+          <div className={`step-item ${canProceed ? 'active' : ''}`}>
+            <span className="step-circle">5</span>
+            <span className="step-label">5. Summary</span>
+          </div>
+        </div>
+      </div>
+
+      {!selectedMovie ? (
+        <div className="booking-card" style={{ textAlign: 'center', padding: '48px 24px' }}>
+          <div style={{ fontSize: '48px', marginBottom: '14px' }}>🎬</div>
+          <h3 style={{ fontSize: '20px', color: '#ffffff', marginBottom: '8px' }}>
+            No Movie Selected
+          </h3>
+          <p style={{ color: '#94a3b8', marginBottom: '24px' }}>
+            Please pick a 2026 blockbuster movie before choosing your theatre and seats.
+          </p>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => navigate('/movies')}
+          >
+            Browse Movies Catalog
+          </button>
+        </div>
+      ) : (
+        <div className="booking-layout">
+          {/* Selected Movie Bar */}
+          <div className="booking-card">
+            <div className="booking-card-header">
+              <span>🎬</span>
+              <span>1. Selected Movie</span>
+            </div>
+            <div className="selected-movie-badge">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                {selectedMovie.poster && (
+                  <img
+                    src={selectedMovie.poster}
+                    alt={selectedMovie.title}
+                    style={{
+                      width: '46px',
+                      height: '64px',
+                      objectFit: 'cover',
+                      borderRadius: '4px',
+                      border: '1px solid #2e3440',
+                    }}
+                  />
+                )}
+                <div>
+                  <div style={{ fontSize: '18px', fontWeight: 700, color: '#f3f4f6' }}>
+                    {selectedMovie.title}
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginTop: '3px' }}>
+                    {selectedMovie.category && <span>{selectedMovie.category} Cinema • </span>}
+                    {selectedMovie.language && <span>{selectedMovie.language} • </span>}
+                    {selectedMovie.year && <span>{selectedMovie.year}</span>}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => navigate('/movies')}
+              >
+                Change Movie
+              </button>
+            </div>
+          </div>
+
+          {/* Coimbatore Theatre Selection */}
+          <div className="booking-card">
+            <div className="booking-card-header">
+              <span>🏛️</span>
+              <span>2. Choose Coimbatore Theatre Venue</span>
+            </div>
+            <TheatreList />
+          </div>
+
+          {/* Date & Showtime Selection */}
+          <div className="booking-card">
+            <div className="booking-card-header">
+              <span>⏰</span>
+              <span>3. Choose Booking Date &amp; Showtime</span>
+            </div>
+            <ShowTiming />
+          </div>
+
+          {/* 110-Seat Auditorium Layout */}
+          <div className="booking-card">
+            <div className="booking-card-header">
+              <span>💺</span>
+              <span>4. Reserve Your Seats (110 Seats Screen Layout)</span>
+            </div>
+            <SeatSelection />
+          </div>
+
+          {/* Dynamic Price Details & Checkout */}
+          <div className="booking-card">
+            <div className="booking-card-header">
+              <span>💳</span>
+              <span>5. Pricing Details &amp; Summary</span>
+            </div>
+
+            <div className="price-breakdown">
+              <div className="price-row">
+                <span>Selected Seats:</span>
+                <span style={{ color: selectedSeats.length > 0 ? '#f87171' : '#64748b', fontWeight: 700 }}>
+                  {selectedSeats.length > 0 ? selectedSeats.join(', ') : 'None'}
+                </span>
+              </div>
+              <div className="price-row">
+                <span>Total Tickets:</span>
+                <span style={{ color: '#ffffff', fontWeight: 600 }}>{selectedSeats.length}</span>
+              </div>
+
+              {priceBreakdown.Regular.count > 0 && (
+                <div className="price-row">
+                  <span>Regular Seats (A–E):</span>
+                  <span>{priceBreakdown.Regular.count} × ₹150 = ₹{priceBreakdown.Regular.total}</span>
+                </div>
+              )}
+
+              {priceBreakdown.Premium.count > 0 && (
+                <div className="price-row">
+                  <span>Premium Seats (F–H):</span>
+                  <span>{priceBreakdown.Premium.count} × ₹200 = ₹{priceBreakdown.Premium.total}</span>
+                </div>
+              )}
+
+              {priceBreakdown.Recliner.count > 0 && (
+                <div className="price-row">
+                  <span>Recliner Seats (I–J):</span>
+                  <span>{priceBreakdown.Recliner.count} × ₹300 = ₹{priceBreakdown.Recliner.total}</span>
+                </div>
+              )}
+
+              <div className="price-row total-row">
+                <span>Grand Total:</span>
+                <span className="total-amount">₹{totalAmount}</span>
+              </div>
+            </div>
+
+            {validationMessage && (
+              <div className="booking-validation-alert" role="alert">
+                {validationMessage}
+              </div>
+            )}
+
+            <button
+              type="button"
+              className="btn-primary checkout-continue-btn"
+              disabled={!canProceed}
+              onClick={() => navigate('/summary')}
+            >
+              <span>Continue to Booking Summary</span>
+              <span>→</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default BookingPage;
+
+
+================================================================================
+FILE 13: src/pages/SummaryPage.jsx
+================================================================================
+import React from 'react';
+import BookingSummary from '../components/BookingSummary';
+
+function SummaryPage() {
+  return (
+    <div className="summary-page">
+      <div className="page-header" style={{ marginBottom: '28px' }}>
+        <div className="coimbatore-tag-badge">
+          <span>🏛️ Coimbatore Multiplex Reserved Seating</span>
+        </div>
+        <h1 className="page-title">Cinema Admission Pass</h1>
+        <p className="page-subtitle">
+          Review your reserved Coimbatore cinema tickets and digital admission pass
+        </p>
+      </div>
+
+      <BookingSummary />
+    </div>
+  );
+}
+
+export default SummaryPage;
+
+
+================================================================================
+FILE 14: src/data/seatLayout.js
+================================================================================
+export const SEAT_PRICES = {
+  Regular: 150,
+  Premium: 200,
+  Recliner: 300,
+};
+
+export const ROW_CONFIG = [
+  { row: 'A', category: 'Regular',  price: SEAT_PRICES.Regular,  seatsCount: 11 },
+  { row: 'B', category: 'Regular',  price: SEAT_PRICES.Regular,  seatsCount: 11 },
+  { row: 'C', category: 'Regular',  price: SEAT_PRICES.Regular,  seatsCount: 11 },
+  { row: 'D', category: 'Regular',  price: SEAT_PRICES.Regular,  seatsCount: 11 },
+  { row: 'E', category: 'Regular',  price: SEAT_PRICES.Regular,  seatsCount: 11 },
+  { row: 'F', category: 'Premium',  price: SEAT_PRICES.Premium,  seatsCount: 11 },
+  { row: 'G', category: 'Premium',  price: SEAT_PRICES.Premium,  seatsCount: 11 },
+  { row: 'H', category: 'Premium',  price: SEAT_PRICES.Premium,  seatsCount: 11 },
+  { row: 'I', category: 'Recliner', price: SEAT_PRICES.Recliner, seatsCount: 11 },
+  { row: 'J', category: 'Recliner', price: SEAT_PRICES.Recliner, seatsCount: 11 },
+];
+
+export const TOTAL_SEATS_PER_SCREEN = 110;
+
+export function getSeatCategory(seatId) {
+  if (!seatId) return 'Regular';
+  const row = String(seatId).trim().charAt(0).toUpperCase();
+  const found = ROW_CONFIG.find((r) => r.row === row);
+  return found ? found.category : 'Regular';
+}
+
+export function getSeatPrice(seatId) {
+  if (!seatId) return SEAT_PRICES.Regular;
+  const category = getSeatCategory(seatId);
+  return SEAT_PRICES[category] || SEAT_PRICES.Regular;
+}
+
+export function calculateSeatsPriceBreakdown(seatIds = []) {
+  const breakdown = {
+    Regular:  { count: 0, rate: SEAT_PRICES.Regular,  total: 0, seats: [] },
+    Premium:  { count: 0, rate: SEAT_PRICES.Premium,  total: 0, seats: [] },
+    Recliner: { count: 0, rate: SEAT_PRICES.Recliner, total: 0, seats: [] },
+    totalAmount: 0,
+    totalSeats: seatIds.length,
+  };
+
+  seatIds.forEach((seatId) => {
+    const category = getSeatCategory(seatId);
+    if (breakdown[category]) {
+      breakdown[category].count += 1;
+      breakdown[category].total += breakdown[category].rate;
+      breakdown[category].seats.push(seatId);
+      breakdown.totalAmount += breakdown[category].rate;
+    }
+  });
+
+  return breakdown;
+}
+
+
+================================================================================
+FILE 15: src/App.css (Seat Removal & Dynamic Chip Additions)
+================================================================================
+.chosen-seat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  background: #1e293b;
+  border: 1px solid #334155;
+  transition: all 0.2s ease;
+}
+
+.chosen-seat-chip.chip-regular {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+}
+
+.chosen-seat-chip.chip-premium {
+  border-color: #a855f7;
+  background: rgba(168, 85, 247, 0.12);
+  color: #c084fc;
+}
+
+.chosen-seat-chip.chip-recliner {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+}
+
+.remove-seat-btn {
+  background: transparent;
+  border: none;
+  color: #f87171;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-left: 6px;
+  padding: 0 4px;
+  line-height: 1;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.remove-seat-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  color: #ef4444;
+  transform: scale(1.15);
+}
+================================================================================
+                      END OF UNIT 4 EXPERIMENT 2 SOURCE CODE
+================================================================================

@@ -1,20 +1,20 @@
-import React, { createContext, useState } from 'react';
+import React, { createContext, useState, useEffect, useCallback } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import authService from '../services/authService';
+import {
+  loginStart,
+  loginSuccess,
+  loginFailure,
+  logoutSuccess,
+  clearAuthError,
+} from '../redux/authSlice';
+import { clearBooking } from '../redux/bookingSlice';
 
-// Create AuthContext
 const AuthContext = createContext();
 
-// ─── Storage Keys ───────────────────────────────────────────────────────────
-const STORAGE_KEY_USERS    = 'bm_users';
-const STORAGE_KEY_AUTH_USER = 'auth_user';
-const STORAGE_KEY_AUTH_STATUS = 'auth_status';
-
-// ─── Built-in admin account ─────────────────────────────────────────────────
-// NOTE: This is a demonstration project only.
-// Plain-text / obfuscated passwords in localStorage are NOT secure for
-// production applications. Use a proper backend with hashed credentials.
+const STORAGE_KEY_USERS = 'bm_users';
 const ADMIN_USER = { username: 'admin', password: '1234' };
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 function getStoredUsers() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY_USERS)) || [];
@@ -24,39 +24,102 @@ function getStoredUsers() {
 }
 
 function saveStoredUsers(users) {
-  localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
+  try {
+    localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
+  } catch {
+    // Ignore storage errors
+  }
 }
 
-// Simple obfuscation (Base64) – NOT cryptographically secure.
-// For a real app, use bcrypt/argon2 on a server; never store real passwords
-// in the browser.
 function obfuscate(str) {
   return btoa(unescape(encodeURIComponent(str)));
 }
 
-function deobfuscate(str) {
-  try {
-    return decodeURIComponent(escape(atob(str)));
-  } catch {
-    return '';
-  }
-}
+export function AuthProvider({ children }) {
+  const dispatch = useDispatch();
+  const reduxAuth = useSelector((state) => state.auth);
 
-// ─── Provider ────────────────────────────────────────────────────────────────
-function AuthProvider({ children }) {
-  const [username, setUsername] = useState(() =>
-    localStorage.getItem(STORAGE_KEY_AUTH_USER) || ''
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Synchronize on mount and handle unauthorized 401/403 events from Axios
+  useEffect(() => {
+    const handleUnauthorized = (e) => {
+      const msg = e.detail?.error || e.detail?.message || 'Session expired. Please log in again.';
+      dispatch(logoutSuccess());
+      dispatch(clearBooking());
+      setError(msg);
+    };
+
+    window.addEventListener('bmm_auth_unauthorized', handleUnauthorized);
+    return () => {
+      window.removeEventListener('bmm_auth_unauthorized', handleUnauthorized);
+    };
+  }, [dispatch]);
+
+  // Login handler using authService & Axios
+  const login = useCallback(
+    async (usernameOrEmail, password) => {
+      const trimmedId = (usernameOrEmail || '').trim();
+      const trimmedPass = (password || '').trim();
+
+      if (!trimmedId || !trimmedPass) {
+        const msg = 'Please enter both username/email and password.';
+        setError(msg);
+        return { success: false, message: msg };
+      }
+
+      setLoading(true);
+      setError(null);
+      dispatch(loginStart());
+
+      try {
+        const result = await authService.login({
+          username: trimmedId,
+          password: trimmedPass,
+        });
+
+        if (result.success) {
+          dispatch(
+            loginSuccess({
+              token: result.token,
+              user: result.user,
+            })
+          );
+          setLoading(false);
+          return { success: true, token: result.token, user: result.user };
+        }
+
+        dispatch(loginFailure(result.message));
+        setError(result.message);
+        setLoading(false);
+        return { success: false, message: result.message };
+      } catch (err) {
+        const msg = err.message || 'Login request failed.';
+        dispatch(loginFailure(msg));
+        setError(msg);
+        setLoading(false);
+        return { success: false, message: msg };
+      }
+    },
+    [dispatch]
   );
 
-  const [isAuthenticated, setIsAuthenticated] = useState(() =>
-    localStorage.getItem(STORAGE_KEY_AUTH_STATUS) === 'true'
-  );
+  // Logout handler
+  const logout = useCallback(async () => {
+    setLoading(true);
+    await authService.logout();
+    dispatch(logoutSuccess());
+    dispatch(clearBooking());
+    setError(null);
+    setLoading(false);
+  }, [dispatch]);
 
-  // ── Register ──────────────────────────────────────────────────────────────
-  const register = (newUser, newPass, confirmPass) => {
-    const trimmedUser = newUser.trim();
-    const trimmedPass = newPass.trim();
-    const trimmedConfirm = confirmPass.trim();
+  // Register helper
+  const register = useCallback((newUser, newPass, confirmPass) => {
+    const trimmedUser = (newUser || '').trim();
+    const trimmedPass = (newPass || '').trim();
+    const trimmedConfirm = (confirmPass || '').trim();
 
     if (!trimmedUser || !trimmedPass || !trimmedConfirm) {
       return { success: false, message: 'All fields are required.' };
@@ -74,83 +137,41 @@ function AuthProvider({ children }) {
       return { success: false, message: 'Passwords do not match.' };
     }
 
-    // Check against built-in admin
     if (trimmedUser.toLowerCase() === ADMIN_USER.username.toLowerCase()) {
-      return { success: false, message: 'That username is already taken. Please choose another.' };
+      return { success: false, message: 'That username is reserved.' };
     }
 
-    // Check against registered users
     const users = getStoredUsers();
-    const exists = users.some(
-      (u) => u.username.toLowerCase() === trimmedUser.toLowerCase()
-    );
-
-    if (exists) {
-      return { success: false, message: 'That username is already registered. Please log in.' };
+    if (users.some((u) => u.username.toLowerCase() === trimmedUser.toLowerCase())) {
+      return { success: false, message: 'Username already registered. Please log in.' };
     }
 
-    // Save new user
     users.push({ username: trimmedUser, password: obfuscate(trimmedPass) });
     saveStoredUsers(users);
 
     return { success: true };
+  }, []);
+
+  const clearError = useCallback(() => {
+    setError(null);
+    dispatch(clearAuthError());
+  }, [dispatch]);
+
+  const value = {
+    token: reduxAuth.token,
+    user: reduxAuth.user,
+    username: reduxAuth.user?.username || '',
+    isAuthenticated: reduxAuth.isAuthenticated,
+    loading: loading || reduxAuth.loading,
+    error: error || reduxAuth.error,
+    login,
+    logout,
+    register,
+    clearError,
   };
 
-  // ── Login ─────────────────────────────────────────────────────────────────
-  const login = (inputUser, inputPass) => {
-    const trimmedUser = inputUser.trim();
-    const trimmedPass = inputPass.trim();
-
-    if (!trimmedUser || !trimmedPass) {
-      return { success: false, message: 'Please enter both username and password.' };
-    }
-
-    // Check admin
-    if (
-      trimmedUser === ADMIN_USER.username &&
-      trimmedPass === ADMIN_USER.password
-    ) {
-      setUsername(trimmedUser);
-      setIsAuthenticated(true);
-      localStorage.setItem(STORAGE_KEY_AUTH_USER, trimmedUser);
-      localStorage.setItem(STORAGE_KEY_AUTH_STATUS, 'true');
-      return { success: true };
-    }
-
-    // Check registered users
-    const users = getStoredUsers();
-    const match = users.find(
-      (u) =>
-        u.username.toLowerCase() === trimmedUser.toLowerCase() &&
-        deobfuscate(u.password) === trimmedPass
-    );
-
-    if (match) {
-      setUsername(match.username);
-      setIsAuthenticated(true);
-      localStorage.setItem(STORAGE_KEY_AUTH_USER, match.username);
-      localStorage.setItem(STORAGE_KEY_AUTH_STATUS, 'true');
-      return { success: true };
-    }
-
-    return { success: false, message: 'Incorrect username or password.' };
-  };
-
-  // ── Logout ────────────────────────────────────────────────────────────────
-  const logout = () => {
-    setUsername('');
-    setIsAuthenticated(false);
-    localStorage.removeItem(STORAGE_KEY_AUTH_USER);
-    localStorage.removeItem(STORAGE_KEY_AUTH_STATUS);
-  };
-
-  const value = { username, isAuthenticated, register, login, logout };
-
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export { AuthContext, AuthProvider };
+export { AuthContext };
+export default AuthContext;

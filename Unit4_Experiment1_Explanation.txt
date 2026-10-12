@@ -1,0 +1,358 @@
+================================================================================
+         BOOKMYMOVIE - REACT CINEMA TICKET BOOKING WEB APPLICATION
+         UNIT 4 - EXPERIMENT 1 : COMPREHENSIVE TECHNICAL EXPLANATION GUIDE
+         Topic: 2026 Movie API Integration & Coimbatore Multiplex Seat Booking System
+         Stack: React 19 + React Router 7 + TMDB REST API + Vite + Vanilla CSS
+         (Prepared for Lab Evaluation, Viva Voce, and Staff / Student Reference)
+================================================================================
+
+
+================================================================================
+  1. EXPERIMENT OVERVIEW & CORE OBJECTIVES
+================================================================================
+
+TITLE:
+------
+Unit 4 – Experiment 1: Live Movie API Integration & Real-Time Cinema Booking
+(2026 Tamil & Hollywood Movies + Coimbatore Multiplex 110-Seat Auditorium Engine)
+
+KEY OBJECTIVES:
+---------------
+1. 2026 Movie Catalog:
+   - Integrate TMDB (The Movie Database) Discover REST API as primary source.
+   - Separate films by language: Tamil (`ta`) and Hollywood / English (`en`).
+   - Implement real-time title search, industry category filtering, and genre pills.
+   - Maintain a curated 2026 local fallback dataset (`src/data/fallbackMovies.js`)
+     featuring authentic 2026 posters and metadata when the live API is offline.
+
+2. Coimbatore Multiplex Infrastructure:
+   - Provide 10 verified cinema theatres located across Coimbatore and nearby areas
+     (RS Puram, Race Course, Peelamedu, Gandhipuram, Avinashi Rd, Sathy Rd, etc.).
+   - Support area filtering pills and search to easily find preferred cinema halls.
+
+3. 8-Day Advance Date Selection & Dynamic Showtimes:
+   - Allow users to book tickets from Today up to 7 days in advance.
+   - Standard 5 daily showtimes (10:00 AM, 1:30 PM, 4:30 PM, 7:30 PM, 10:15 PM).
+   - Intelligently disable past showtimes for the current calendar day.
+
+4. Interactive 110-Seat Auditorium Layout:
+   - Authentic 110-seat theatre layout (10 Rows A–J × 11 Seats per row).
+   - Center walking aisle dividing Seat 5 and Seat 6 (Left: 1-5, Right: 6-11).
+   - Three distinct seating tiers:
+     * Regular   (Rows A–E, ₹150)
+     * Premium   (Rows F–H, ₹200)
+     * Recliner  (Rows I–J, ₹300)
+
+5. Deterministic Pre-Booked Seat Availability Simulation:
+   - Each show starts with 20–35 realistic pre-booked seats.
+   - Seat availability is deterministic based on `movieId + theatreId + date + showtime`
+     so switching tabs or re-rendering never reshuffles the occupied seats.
+   - Confirmed user bookings dynamically merge and persist across browser sessions.
+
+6. Admission Pass Generation & Booking Persistence:
+   - Unique reference identifier format: `BMM-CBE-XXXXXX`.
+   - Complete itemized price breakdown (seats by category, subtotal, 18% GST).
+   - All bookings persist in browser `localStorage` and display in "My Bookings".
+
+
+================================================================================
+  2. COMPLETE PROJECT STRUCTURE & COMPONENT ROLES
+================================================================================
+
+BookMyMovie/
+│
+├── .env.example                          --> Template for VITE_TMDB_API_KEY config
+├── .gitignore                            --> Excludes node_modules, dist, and .env files
+├── package.json                          --> Dependencies (React 19, React Router 7, Vite)
+├── vite.config.js                        --> Vite build pipeline configuration
+├── eslint.config.js                      --> Code quality & React lint rules
+│
+├── public/
+│   ├── bookmymovie-icon.svg              --> Brand cinema ticket logo icon
+│   ├── favicon.svg                       --> Browser tab favicon
+│   └── posters/                          --> Local 2026 movie posters:
+│       ├── jailer2ogk.jpg                --> Jailer 2 (Rajinikanth)
+│       ├── indian3.jpg                   --> Indian 3 (Kamal Haasan)
+│       ├── dhuruvanachathiran.jpg        --> Dhruva Natchathiram (Chiyaan Vikram)
+│       ├── doomsday.jpg                  --> Avengers: Doomsday (Robert Downey Jr.)
+│       ├── projexthailmary.jpg           --> Project Hail Mary (Ryan Gosling)
+│       ├── scream.jpg                    --> Scream 7 (Neve Campbell)
+│       ├── spidermanbnd.jpg              --> Spider-Man: Brand New Day (Tom Holland)
+│       ├── thesupermariogalaxy.jpg       --> The Super Mario Galaxy Movie
+│       └── thedevilwearsprada.jpg        --> The Devil Wears Prada 2
+│
+└── src/
+    ├── main.jsx                          --> Application bootstrapper
+    ├── App.jsx                           --> Top-level App routes, Auth & Booking Providers
+    ├── App.css                           --> Charcoal cinema dark theme & responsive styles
+    ├── index.css                         --> Base design variables & Google Inter fonts
+    │
+    ├── data/
+    │   ├── fallbackMovies.js             --> Verified 2026 Tamil & Hollywood dataset
+    │   ├── theatres.js                   --> 10 Coimbatore cinemas, addresses & screens
+    │   ├── seatLayout.js                 --> 110-seat configuration & tier price calculator
+    │   └── showtimes.js                  --> 8-day date generator & showtime definitions
+    │
+    ├── services/
+    │   ├── movieApi.js                   --> TMDB REST API integration & data normalizer
+    │   └── bookingService.js             --> Hash-based seat booking engine & persistence
+    │
+    ├── context/
+    │   ├── AuthContext.jsx               --> Auth state (admin / 1234, session, accounts)
+    │   └── BookingContext.jsx            --> Active booking transaction & history provider
+    │
+    ├── hooks/
+    │   ├── useAuth.js                    --> Hook to consume authentication state
+    │   └── useBooking.js                 --> Hook to consume booking operations
+    │
+    ├── components/
+    │   ├── Header.jsx                    --> Navbar with BookMyMovie logo, nav links & auth
+    │   ├── BookMyMovieIcon.jsx           --> Crisp SVG cinema clapper/ticket brand icon
+    │   ├── Footer.jsx                    --> Footer with copyright & Coimbatore info
+    │   ├── MovieCard.jsx                 --> 2026 movie card with rating & Upcoming pill
+    │   ├── MovieList.jsx                 --> Movie grid with loading/error/empty fallbacks
+    │   ├── SearchBar.jsx                 --> Debounced 2026 title search box
+    │   ├── CategoryFilter.jsx            --> Industry filter (All, Tamil, Hollywood)
+    │   ├── GenreFilter.jsx               --> Genre chips (Action, Sci-Fi, Crime, etc.)
+    │   ├── TheatreList.jsx               --> Coimbatore theatre cards & area filter pills
+    │   ├── ShowTiming.jsx                --> 8-Day date selector & daily showtime chips
+    │   ├── SeatSelection.jsx             --> Interactive 110-seat screen, aisles & legend
+    │   ├── BookingSummary.jsx            --> Price calculation & ticket confirmation card
+    │   ├── Loading.jsx                   --> Modern shimmer skeleton loaders
+    │   ├── ErrorMessage.jsx              --> Error card with retry trigger
+    │   ├── EmptyState.jsx                --> Zero-result card with filter reset
+    │   └── ProtectedRoute.jsx            --> Guards /movies, /booking, and /summary
+    │
+    └── pages/
+        ├── HomePage.jsx                  --> Hero banner, 2026 featured movie, quick book
+        ├── MoviesPage.jsx                --> 2026 catalog browsing, search & multi-filtering
+        ├── MovieDetailsPage.jsx          --> In-depth movie overview, cast, crew & ratings
+        ├── BookingPage.jsx               --> 5-step interactive booking flow
+        ├── SummaryPage.jsx               --> Confirmed admission pass & "My Bookings" log
+        ├── LoginPage.jsx                 --> Login form with pre-filled demo credentials
+        ├── RegisterPage.jsx              --> New user signup form with validation
+        └── NotFound.jsx                  --> 404 page with redirect to home
+
+
+================================================================================
+  3. COIMBATORE CINEMA VENUES (10 VERIFIED THEATRES)
+================================================================================
+
+The application features 10 real-world cinema theatres situated in Coimbatore
+and adjoining municipal hubs, each with real addresses, formats, and screens:
+
+1. INOX Prozone Mall
+   - Location: Sathy Road, Saravanampatti, Coimbatore
+   - Screens: 9 Screens | Formats: Insignia, Laser 4K, Dolby Atmos, RealD 3D
+   - Area: Sathy Road
+
+2. Broadway Cinemas
+   - Location: KMCH Campus, Avinashi Road, Peelamedu, Coimbatore
+   - Screens: 9 Screens | Formats: EPIQ Giant Screen, Dolby Atmos, Gold Class
+   - Area: Avinashi Road
+
+3. KG Cinemas
+   - Location: Bungalow Road, Race Course, Coimbatore
+   - Screens: 4 Screens | Formats: RGB Laser 4K, Dolby Atmos, Barco Vision
+   - Area: Race Course
+
+4. Cinepolis Fun Republic Mall
+   - Location: Avinashi Road, Peelamedu, Coimbatore
+   - Screens: 5 Screens | Formats: RealD 3D, Dolby 7.1 Surround, VIP Lounge
+   - Area: Peelamedu
+
+5. PVR Brookefields Mall
+   - Location: Dr Krishnasamy Mudaliar Road, RS Puram, Coimbatore
+   - Screens: 6 Screens | Formats: 4K Laser, Dolby Atmos, PVR P[XL]
+   - Area: RS Puram
+
+6. Sri Sakthi Cinemas
+   - Location: Avinashi Road, Thirumuruganpoondi, Coimbatore / Tiruppur Border
+   - Screens: 6 Screens | Formats: RGB Laser, Dolby Atmos, RGB 4K
+   - Area: Avinashi Road
+
+7. Karpagam Theatres
+   - Location: Sathyamangalam Main Road, Gandhipuram, Coimbatore
+   - Screens: 3 Screens | Formats: 4K Projection, Dolby Surround Sound
+   - Area: Gandhipuram
+
+8. Archana Darshana Cinemas
+   - Location: Big Bazaar Street, Town Hall, Coimbatore
+   - Screens: 2 Screens | Formats: Qube 4K Cinema, Dolby Surround 7.1
+   - Area: Town Hall
+
+9. Sree Annapoorna Cinemas
+   - Location: DB Road, RS Puram, Coimbatore
+   - Screens: 2 Screens | Formats: Digital 2K, Dolby Digital Sound
+   - Area: RS Puram
+
+10. Maharaja Multiplex
+    - Location: Avinashi Road, Neelambur, Coimbatore
+    - Screens: 5 Screens | Formats: 4K Projection, Dolby Atmos, Family Lounge
+    - Area: Neelambur
+
+COIMBATORE AREA FILTERING:
+Users can filter cinemas using real-time area chips (RS Puram, Race Course,
+Peelamedu, Gandhipuram, Avinashi Road, Sathy Road, Town Hall, Neelambur) or search
+by venue name.
+
+
+================================================================================
+  4. ADVANCE DATE PICKER & SHOWTIME ENGINE
+================================================================================
+
+1. ADVANCE DATE GENERATION (`src/data/showtimes.js`):
+   - The booking engine computes 8 rolling calendar dates: Today through 7 days
+     ahead (`getAvailableBookingDates(7)`).
+   - Display format:
+     * Label: `Today`, `Tomorrow`, or day of week (`Fri`, `Sat`, `Sun`, etc.)
+     * Date display: `9 Oct`, `10 Oct`, `11 Oct`
+     * ISO standard value: `2026-10-09`
+   - Stored in `selectedDate` state inside `BookingContext`.
+
+2. REALISTIC COIMBATORE SHOWTIMES:
+   Five realistic cinema showtimes are scheduled across all screens:
+   - `show-1` : 10:00 AM  (Morning Show)
+   - `show-2` : 01:30 PM  (Matinee Show)
+   - `show-3` : 04:30 PM  (First Show)
+   - `show-4` : 07:30 PM  (Prime Evening Show)
+   - `show-5` : 10:15 PM  (Night Show)
+
+3. INTELLIGENT PAST-TIME DETECTION (`isShowtimePast`):
+   - When the user selects "Today", the application compares each show's time
+     against the user's current clock (`hours` and `minutes`).
+   - If a showtime has already passed today, its button is disabled with a "Past"
+     tag, preventing invalid bookings.
+   - For all future dates (Tomorrow onward), all 5 showtimes remain active.
+
+
+================================================================================
+  5. 110-SEAT AUDITORIUM SCREEN LAYOUT & 3-TIER PRICING
+================================================================================
+
+1. AUDITORIUM GEOMETRY (`src/data/seatLayout.js`):
+   - Capacity: Exactly 110 seats per theatre screen.
+   - Rows: 10 rows lettered `A` through `J`.
+   - Columns: 11 seats per row (`1` through `11`).
+   - Center Walking Aisle: Placed between Seat 5 and Seat 6, dividing the screen
+     into Left Wing (seats 1–5) and Right Wing (seats 6–11).
+   - Visual Screen: Curved silver screen bar at the top with "ALL EYES THIS WAY".
+
+2. THREE SEAT CATEGORIES & PRICING:
+   -----------------------------------------------------------------------------
+   Category   Rows   Seats Count   Base Price / Seat   Features
+   -----------------------------------------------------------------------------
+   Regular    A - E  55 Seats      ₹150                Standard cinema seating
+   Premium    F - H  33 Seats      ₹200                Enhanced legroom & center angle
+   Recliner   I - J  22 Seats      ₹300                Plush leather motorized recliners
+   -----------------------------------------------------------------------------
+   TOTAL             110 Seats
+
+3. DYNAMIC PRICING CALCULATION (`calculateSeatsPriceBreakdown`):
+   Users can pick seats from different tiers in the same transaction!
+   - Example Selection: Seats A3 (Regular), F6 (Premium), and J8 (Recliner)
+     * Regular: 1 × ₹150 = ₹150
+     * Premium: 1 × ₹200 = ₹200
+     * Recliner: 1 × ₹300 = ₹300
+     * Subtotal: ₹650
+     * Convenience Fee / GST (18%): ₹117
+     * Grand Total: ₹767
+
+
+================================================================================
+  6. DETERMINISTIC PRE-BOOKED SEAT AVAILABILITY SIMULATION
+================================================================================
+
+1. PROBLEM WITH PURE RANDOMIZATION:
+   Calling `Math.random()` on every render causes occupied seats to switch every
+   time a user clicks a seat, changes state, or re-renders, breaking user experience.
+
+2. DETERMINISTIC PSEUDO-RANDOM HASHING (`bookingService.js`):
+   - A unique `showKey` is generated for every show:
+     `showKey = "${movieId}_${theatreId}_${selectedDate}_${showtimeId}"`
+   - A 32-bit integer hash code is computed deterministically from `showKey`:
+     let hash = 0;
+     for (let i = 0; i < str.length; i++) {
+       hash = (hash << 5) - hash + str.charCodeAt(i);
+       hash |= 0;
+     }
+   - Linear Congruential Generator (LCG) generates a deterministic sequence of
+     20 to 35 pre-booked seats based on this hash seed.
+   - Guaranteed Result:
+     * The exact same seats remain booked for a given show throughout the session.
+     * Different theatres, dates, or showtimes generate completely different occupied maps!
+
+3. MERGING PRE-BOOKED & USER-CONFIRMED SEATS:
+   - When checking availability:
+     `allBookedSeats = [...initialPreBookedSeats, ...savedUserBookingsForShow]`
+   - Booked seats render in dark charcoal with a lock icon and `disabled` attribute.
+   - Clicking a booked seat displays an instant warning toast:
+     "Seat {id} ({Category}) is already occupied for this show."
+
+
+================================================================================
+  7. PERSISTENCE & UNIQUE BOOKING REFERENCE
+================================================================================
+
+1. BOOKING REFERENCE FORMAT:
+   - Format: `BMM-CBE-XXXXXX` (e.g., `BMM-CBE-847291`)
+   - Generated with timestamp and random alphanumeric padding to ensure uniqueness.
+
+2. LOCALSTORAGE PERSISTENCE ARCHITECTURE:
+   - `bm_last_booking`: Holds the active confirmed ticket for instant display.
+   - `bm_bookings_history`: Holds all past confirmed bookings for the logged-in user.
+   - When a booking is confirmed, `confirmNewBooking()` saves the transaction and
+     updates the occupied seats list for that specific `showKey`.
+
+3. USER INTERFACE FLOW (5-STEP PROGRESS BAR):
+   1. Movie Selection    --> Select 2026 Tamil or Hollywood movie
+   2. Theatre Selection  --> Select Coimbatore Multiplex (with Area filters)
+   3. Date & Showtime    --> Select booking date (8 days) and showtime
+   4. Seat Selection     --> Pick seats from 110-seat auditorium with live price
+   5. Booking Summary    --> View breakdown and confirm booking ticket pass
+
+
+================================================================================
+  8. FREQUENTLY ASKED VIVA QUESTIONS & MODEL ANSWERS
+================================================================================
+
+Q1: Why did you transition the theatre system to Coimbatore?
+A1: To provide a realistic, localized multiplex booking experience featuring 10
+    authentic Coimbatore cinema properties (such as INOX Prozone Mall, Broadway
+    Cinemas, KG Cinemas, Cinepolis Fun Republic, and PVR Brookefields) complete
+    with authentic addresses, screen formats, and neighborhood area filters.
+
+Q2: How does the application prevent past showtimes from being booked?
+A2: In `src/data/showtimes.js`, the `isShowtimePast(showtime, selectedDate)` function
+    inspects the selected date. If the date matches today's calendar date, it parses
+    the show hour and minute and compares them against `new Date()`. If current
+    time has passed the showtime, the button is disabled.
+
+Q3: How are seats laid out and what are the pricing tiers?
+A3: The screen has 110 seats organized in 10 rows (A to J) with 11 seats per row.
+    A walking aisle divides seats 5 and 6. The pricing is tiered into:
+    - Regular  (Rows A–E, ₹150)
+    - Premium  (Rows F–H, ₹200)
+    - Recliner (Rows I–J, ₹300)
+
+Q4: How do you simulate pre-booked seats without them changing on every render?
+A4: We use a deterministic hash function in `src/services/bookingService.js` that
+    converts the composite key `(movieId, theatreId, date, showtime)` into a numeric
+    seed. A pseudo-random generator uses this seed to select 20–35 pre-booked seats.
+    This guarantees that the same show always produces identical occupied seats.
+
+Q5: What happens when a user confirms a booking?
+A5: The system creates an admission pass with a unique reference (`BMM-CBE-XXXXXX`),
+    computes category price subtotals and 18% GST, marks the newly booked seats as
+    occupied in `localStorage` under `bm_bookings_history`, and redirects to the
+    Summary Page displaying the digital cinema ticket pass.
+
+Q6: How does the app handle offline fallback for 2026 movies?
+A6: If no TMDB API key is provided, the app falls back to `src/data/fallbackMovies.js`
+    which contains verified 2026 Tamil (Jailer 2, Indian 3, Dhruva Natchathiram,
+    Drishyam 3, Ramayana: Part 1) and Hollywood movies (Avengers: Doomsday, Project
+    Hail Mary, Scream 7, Spider-Man: Brand New Day, etc.) with local poster assets.
+
+================================================================================
+                            END OF EXPLANATION GUIDE
+================================================================================

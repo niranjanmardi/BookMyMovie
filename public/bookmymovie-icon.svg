@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bmmGradient" x1="4" y1="4" x2="60" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#E50914"/>
+      <stop offset="60%" stop-color="#B20710"/>
+      <stop offset="100%" stop-color="#700008"/>
+    </linearGradient>
+
+    <!-- Golden Accent Gradient -->
+    <linearGradient id="goldGlow" x1="16" y1="12" x2="48" y2="52" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FDE047"/>
+      <stop offset="50%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+
+    <!-- Glass Highlights -->
+    <linearGradient id="ticketSheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Drop Shadow Filter -->
+    <filter id="iconShadow" x="-10%" y="-10%" width="130%" height="130%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <!-- Outer Rounded Shield / Ticket Container with Shadow -->
+  <rect x="6" y="6" width="52" height="52" rx="14" fill="url(#bmmGradient)" filter="url(#iconShadow)"/>
+
+  <!-- Border Ring -->
+  <rect x="6.5" y="6.5" width="51" height="51" rx="13.5" stroke="#FFA3A8" stroke-width="1.2" stroke-opacity="0.4"/>
+
+  <!-- Subtle Ticket Cutouts (Notches on Left and Right) -->
+  <circle cx="6" cy="32" r="5" fill="#0b0f19"/>
+  <circle cx="58" cy="32" r="5" fill="#0b0f19"/>
+
+  <!-- Top Clapperboard Diagonal Stripes -->
+  <g opacity="0.95">
+    <path d="M12 12 H52 V21 H12 Z" fill="#18181B" rx="3"/>
+    <!-- Stripes -->
+    <path d="M15 21 L20 12 H24 L19 21 Z" fill="#F4F4F5"/>
+    <path d="M28 21 L33 12 H37 L32 21 Z" fill="#F4F4F5"/>
+    <path d="M41 21 L46 12 H50 L45 21 Z" fill="#F4F4F5"/>
+  </g>
+
+  <!-- Film Perforations / Dashed Divider -->
+  <line x1="14" y1="32" x2="50" y2="32" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="1.5" stroke-dasharray="2 3"/>
+
+  <!-- Center Glowing Cinema Reel / Play Badge -->
+  <circle cx="32" cy="43" r="10.5" fill="#121218" stroke="url(#goldGlow)" stroke-width="2"/>
+
+  <!-- Play Arrow inside Reel -->
+  <polygon points="29,38 38,43 29,48" fill="url(#goldGlow)"/>
+
+  <!-- Little Stars / Sparks -->
+  <circle cx="18" cy="43" r="1.5" fill="#FDE047" opacity="0.8"/>
+  <circle cx="46" cy="43" r="1.5" fill="#FDE047" opacity="0.8"/>
+
+  <!-- Glass Sheen Overlay Top Half -->
+  <path d="M7 16 C7 10.477 11.477 6 17 6 H47 C52.523 6 57 10.477 57 16 V28 H7 Z" fill="url(#ticketSheen)"/>
+</svg>

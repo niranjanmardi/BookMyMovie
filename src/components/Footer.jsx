@@ -2,8 +2,15 @@ import React from 'react';
 
 function Footer() {
   return (
-    <footer className="footer">
-      <p>© 2026 BookMyMovie • Unit 3: React Router Movie Booking System</p>
+    <footer className="footer" role="contentinfo">
+      <div className="footer-content">
+        <p className="footer-copyright">
+          © 2026 BookMyMovie • Unit 4 Experiment 1: Movie Booking with REST API Integration
+        </p>
+        <p className="footer-subtext">
+          Powered by React 19 &amp; TVMaze REST API • Cinema Dark Charcoal Design
+        </p>
+      </div>
     </footer>
   );
 }

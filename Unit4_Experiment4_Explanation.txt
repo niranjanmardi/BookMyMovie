@@ -1,0 +1,209 @@
+================================================================================
+          FOOD ORDERING & CONCESSIONS - REACT WEB APPLICATION
+          UNIT 4 - EXPERIMENT 4 : COMPREHENSIVE TECHNICAL EXPLANATION GUIDE
+          Topic: Authentication and Token Management for Food Ordering
+          Stack: React 19 + React Router 7 + Axios + Vite + Vanilla CSS
+          (Prepared for Lab Evaluation, Viva Voce, and Staff / Student Reference)
+================================================================================
+
+
+================================================================================
+  1. EXPERIMENT OVERVIEW & CORE OBJECTIVES
+================================================================================
+
+TITLE:
+------
+Unit 4 – Experiment 4: Authentication and Token Management for Food Ordering
+(Topics: Authentication, Tokens, Protected API, Axios Interceptors)
+
+OBJECTIVES & LAB MAPPING:
+-------------------------
+a) Create a login form for user authentication:
+   - Provide email/username and password input fields with state management.
+   - Client-side validation for empty fields, email formats, and minimum length.
+   - Interactive show/hide password toggle and accessible ARIA attributes.
+   - Reusable `src/components/Login.jsx` component.
+
+b) Send login credentials to an authentication API:
+   - Asynchronously transmit user credentials via HTTP POST (`/api/auth/login`)
+     using Axios in `src/services/authService.js`.
+   - Backend verification of credentials and generation of a signed JWT token.
+
+c) Store the authentication token after successful login:
+   - Store issued JWT Bearer token and user profile in `sessionStorage` and
+     `localStorage` for persistent session management across page refreshes.
+   - Abstracted via helper functions `getToken()`, `setToken()`, and `removeToken()`.
+
+d) Attach the token to API requests using Axios configuration or interceptors:
+   - Implement an Axios Request Interceptor in `src/services/axiosInstance.js`.
+   - Automatically intercepts every outgoing HTTP request, reads the token from
+     storage, and injects: `config.headers.Authorization = Bearer <token>`.
+
+e) Implement logout functionality and remove the stored token:
+   - Clear session and local storage (`removeToken()`).
+   - Notify backend endpoint (`POST /api/auth/logout`).
+   - Reset Redux / Context authentication state and empty sensitive cart data.
+   - Smoothly redirect user to `/login` or homepage.
+
+f) Restrict cart, checkout, and order APIs to authenticated users:
+   - Backend REST server in `vite.config.js` inspects `Authorization` header
+     on `/api/food/cart`, `/api/food/checkout`, and `/api/food/orders`.
+   - Returns `HTTP 401 Unauthorized` if Bearer token is missing, corrupted, or expired.
+   - Frontend `ProtectedRoute.jsx` component guards sensitive client routes.
+
+g) Handle authentication errors and expired tokens:
+   - Implement an Axios Response Interceptor in `src/services/axiosInstance.js`.
+   - Intercepts `401 Unauthorized` and `403 Forbidden` HTTP responses.
+   - Automatically purges expired token from storage, broadcasts an unauthorized
+     event to update UI banners, and redirects to `/login?expired=true`.
+   - Includes live "Simulate Expired Token (401)" tool for lab evaluation.
+
+h) Display loading and error states during authentication:
+   - UI reflects loading states via animated spinners (`loading = true`).
+   - Action buttons are disabled during network requests to prevent duplicate submissions.
+   - Inline field errors, invalid credentials alerts, and session expired banners
+     are clearly rendered.
+
+
+================================================================================
+  2. ARCHITECTURE & TOKEN LIFECYCLE DIAGRAM
+================================================================================
+
+              +------------------------------------------+
+              |               User Browser               |
+              +------------------------------------------+
+                                    |
+            1. Submit Credentials   |  POST /api/auth/login
+                                    v
+              +------------------------------------------+
+              |           Authentication API             |
+              |   (Validates username/pass & issues JWT) |
+              +------------------------------------------+
+                                    |
+            2. Return Bearer Token  |  { token: "bmm_jwt_..." }
+                                    v
+              +------------------------------------------+
+              |              Token Storage               |
+              |       (sessionStorage / localStorage)    |
+              +------------------------------------------+
+                                    |
+            3. Axios Request        |  Axios Request Interceptor
+               Interceptor          |  Injects Authorization: Bearer <token>
+                                    v
+              +------------------------------------------+
+              |           Protected Food APIs            |
+              |   GET /api/food/cart                     |
+              |   POST /api/food/checkout                |
+              |   GET /api/food/orders                   |
+              +------------------------------------------+
+                                    |
+            4. Token Expired?       |  HTTP 401 Unauthorized
+                                    v
+              +------------------------------------------+
+              |        Axios Response Interceptor        |
+              |  - Purges Token from Storage             |
+              |  - Dispatches Unauthorized Event         |
+              |  - Redirects to /login?expired=true      |
+              +------------------------------------------+
+
+
+================================================================================
+  3. DETAILED CODE IMPLEMENTATION HIGHLIGHTS
+================================================================================
+
+1. Axios Request Interceptor (Requirement d):
+----------------------------------------------
+```javascript
+axiosInstance.interceptors.request.use(
+  (config) => {
+    const token = getToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+```
+
+2. Axios Response Interceptor (Requirement g):
+-----------------------------------------------
+```javascript
+axiosInstance.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error.response ? error.response.status : null;
+    if (status === 401 || status === 403) {
+      removeToken();
+      window.dispatchEvent(
+        new CustomEvent('bmm_auth_unauthorized', { detail: error.response?.data })
+      );
+      if (!window.location.pathname.startsWith('/login')) {
+        const redirectPath = encodeURIComponent(window.location.pathname);
+        window.location.href = `/login?redirect=${redirectPath}&expired=true`;
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+```
+
+3. Backend Protected Route Token Verification (Requirement f):
+--------------------------------------------------------------
+```javascript
+const verifyTokenHeader = (authHeader) => {
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return { valid: false, error: 'Unauthorized: Authentication token is missing.' };
+  }
+  const token = authHeader.replace(/^Bearer\s+/, '').trim();
+  // Validates signature and expiration timestamp (exp)
+  ...
+};
+```
+
+
+================================================================================
+  4. VIVA VOCE QUESTIONS & ANSWERS (FOR LAB EXAMINATIONS)
+================================================================================
+
+Q1: What is an Axios Interceptor and why is it used in token management?
+A1: An Axios Interceptor is middleware that intercepts HTTP requests before they
+    are sent or HTTP responses before they are handled by `then()` or `catch()`.
+    Request interceptors automate attaching `Authorization: Bearer <token>` to
+    every outgoing call, preventing redundant header coding across components.
+    Response interceptors catch global HTTP errors like 401 Unauthorized to
+    purge expired tokens and trigger automatic redirects.
+
+Q2: What is the difference between sessionStorage and localStorage for storing tokens?
+A2: `localStorage` persists indefinitely across browser tabs and system restarts
+    until explicitly deleted. `sessionStorage` is scoped to the specific tab/window
+    and is automatically cleared when the tab is closed, offering higher security
+    against unauthorized physical access.
+
+Q3: What is the Bearer Token authentication scheme?
+A3: Bearer authentication is an HTTP authentication scheme where the client
+    transmits a security token (usually a signed JSON Web Token / JWT) in the
+    `Authorization` header formatted as:
+    `Authorization: Bearer <token>`.
+    The server validates the token's digital signature and expiration without
+    needing to query a database on every request.
+
+Q4: How does Requirement (f) protect Cart and Checkout APIs?
+A4: Both client-side and server-side guards are implemented:
+    - Server-side: `vite.config.js` inspects `req.headers.authorization`. If missing
+      or invalid, it immediately returns `HTTP 401 Unauthorized` with an error message.
+    - Client-side: `ProtectedRoute.jsx` checks `isAuthenticated`. If false, it
+      redirects unauthenticated users to `/login` with a redirect target.
+
+Q5: How does the application handle expired tokens (Requirement g)?
+A5: When a JWT token's `exp` timestamp has lapsed, the backend rejects requests
+    with `HTTP 401`. The Axios response interceptor catches the 401 error, invokes
+    `removeToken()` to clear stale session data, and redirects the user to
+    `/login?expired=true`, where an informative warning alert is displayed.
+
+Q6: How are loading and error states handled (Requirement h)?
+A6: Asynchronous state variables (`loading`, `error`, `cartLoading`, `checkoutLoading`)
+    track network lifecycles. During authentication, buttons show spinners and are
+    disabled to prevent double submission. Errors from the API or validation are
+    displayed using structured alerts with retry or dismiss buttons.
+================================================================================

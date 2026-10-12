@@ -1,10 +1,62 @@
 import React from 'react';
+import MovieCard from './MovieCard';
+import Loading from './Loading';
+import ErrorMessage from './ErrorMessage';
+import EmptyState from './EmptyState';
 import useBooking from '../hooks/useBooking';
 
-function MovieList({ onSelectAndContinue }) {
-  const { filteredMovies, selectedMovie, handleSelectMovie } = useBooking();
+/**
+ * Reusable MovieList component
+ * Manages rendering of movie cards, loading skeletons, error states, and empty states.
+ *
+ * @param {Object} props
+ * @param {Array} props.movies - Array of movie objects
+ * @param {boolean} [props.isLoading=false] - Whether movies are currently fetching
+ * @param {string|null} [props.error=null] - Error message if fetch failed
+ * @param {Function} [props.onRetry] - Callback to retry failed request
+ * @param {Function} [props.onReset] - Callback to clear search/genre filters
+ * @param {Function} [props.onSelectAndContinue] - Optional callback after selecting a movie
+ */
+function MovieList({
+  movies = [],
+  isLoading = false,
+  error = null,
+  onRetry,
+  onReset,
+  onSelectAndContinue,
+}) {
+  const { selectedMovie, handleSelectMovie } = useBooking();
 
-  const handleCardClick = (movie) => {
+  // 1. Loading State
+  if (isLoading) {
+    return <Loading type="skeleton" count={8} />;
+  }
+
+  // 2. Error State with Retry
+  if (error) {
+    return (
+      <ErrorMessage
+        title="Failed to Load Movies"
+        message={error}
+        onRetry={onRetry}
+        retryText="Retry Loading"
+      />
+    );
+  }
+
+  // 3. Empty State with Reset Filters
+  if (!movies || movies.length === 0) {
+    return (
+      <EmptyState
+        title="No Movies Found"
+        message="No cinema titles matched your current search query or genre filter. Try adjusting your search."
+        onReset={onReset}
+      />
+    );
+  }
+
+  // 4. Movies Grid
+  const handleMovieSelect = (movie) => {
     handleSelectMovie(movie);
     if (onSelectAndContinue) {
       onSelectAndContinue(movie);
@@ -12,70 +64,21 @@ function MovieList({ onSelectAndContinue }) {
   };
 
   return (
-    <div>
-      {filteredMovies.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
-          <p style={{ fontSize: '18px' }}>No movies found matching your search.</p>
-        </div>
-      ) : (
-        <div className="movies-grid">
-          {filteredMovies.map((movie) => {
-            const isSelected = selectedMovie?.id === movie.id;
-            return (
-              <div
-                key={movie.id}
-                onClick={() => handleCardClick(movie)}
-                className={`movie-card ${isSelected ? 'selected' : ''}`}
-              >
-                {/* Actual poster image from public/posters */}
-                {movie.poster ? (
-                  <img
-                    src={movie.poster}
-                    alt={`${movie.title} poster`}
-                    className="movie-poster-img"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                      e.currentTarget.nextSibling.style.display = 'flex';
-                    }}
-                  />
-                ) : null}
-                <div
-                  className="movie-poster-mock"
-                  style={{ display: movie.poster ? 'none' : 'flex' }}
-                >
-                  🎬
-                </div>
-
-                <div className="movie-card-info">
-                  <h4>{movie.title}</h4>
-                  <div className="movie-meta">
-                    <span>{movie.genre}</span>
-                    <span>{movie.year}</span>
-                  </div>
-                  {movie.cast && (
-                    <div className="movie-cast">🎭 {movie.cast}</div>
-                  )}
-                  {movie.director && (
-                    <div className="movie-director">🎬 {movie.director}</div>
-                  )}
-                </div>
-
-                <button
-                  type="button"
-                  className="movie-select-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleCardClick(movie);
-                  }}
-                >
-                  {isSelected ? '✓ Selected' : 'Select Movie'}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
+    <section className="movie-list-section" aria-label="Movies Collection">
+      <div className="movies-grid">
+        {movies.map((movie) => {
+          const isSelected = selectedMovie && String(selectedMovie.id) === String(movie.id);
+          return (
+            <MovieCard
+              key={movie.id}
+              movie={movie}
+              isSelected={isSelected}
+              onSelect={handleMovieSelect}
+            />
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

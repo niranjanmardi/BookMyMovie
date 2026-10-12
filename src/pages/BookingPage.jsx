@@ -14,20 +14,20 @@ function BookingPage() {
     selectedTime,
     selectedSeats,
     totalAmount,
-    ticketPrice,
+    priceBreakdown,
   } = useBooking();
 
-  // Condition to allow continuing to summary
+  // Condition to allow continuing to summary pass
   const canProceed =
     selectedMovie && selectedTheatre && selectedDate && selectedTime && selectedSeats.length > 0;
 
   // Validation message helper
   const getValidationMessage = () => {
-    if (!selectedMovie)             return 'Please select a movie from the Movies page first.';
-    if (!selectedTheatre)           return '👉 Please choose a theatre above to continue.';
-    if (!selectedDate)              return '👉 Please choose a show date to continue.';
-    if (!selectedTime)              return '👉 Please choose a show time to continue.';
-    if (selectedSeats.length === 0) return '👉 Please select at least 1 seat to continue.';
+    if (!selectedMovie)             return '👉 Please select a movie from the Movies page first.';
+    if (!selectedTheatre)           return '👉 Step 2: Please choose a Coimbatore cinema venue above to continue.';
+    if (!selectedDate)              return '👉 Step 3: Please choose your preferred booking date.';
+    if (!selectedTime)              return '👉 Step 3: Please choose a showtime to view available seats.';
+    if (selectedSeats.length === 0) return '👉 Step 4: Please pick at least 1 cinema seat to continue.';
     return null;
   };
 
@@ -35,11 +35,47 @@ function BookingPage() {
 
   return (
     <div className="booking-page">
+      {/* ── Page Header & Step Indicator ── */}
       <div className="page-header">
-        <h2 className="page-title">🎟️ Seat & Show Booking</h2>
+        <div className="coimbatore-tag-badge">
+          <span>🏛️ Coimbatore Multiplex Reserved Seating</span>
+        </div>
+        <h1 className="page-title">Cinema Ticket &amp; Seat Booking</h1>
         <p className="page-subtitle">
-          Select your theatre, preferred show timing, and choose your cinema seats
+          Select verified Coimbatore theatres, show dates, showtimes, and reserved seats across 110-seat screens
         </p>
+
+        {/* Step Progress Tracker */}
+        <div className="booking-step-tracker" aria-label="Booking steps">
+          <div className={`step-item ${selectedMovie ? 'done' : 'active'}`}>
+            <span className="step-circle">{selectedMovie ? '✓' : '1'}</span>
+            <span className="step-label">1. Movie</span>
+          </div>
+          <div className="step-connector"></div>
+
+          <div className={`step-item ${selectedTheatre ? 'done' : selectedMovie ? 'active' : ''}`}>
+            <span className="step-circle">{selectedTheatre ? '✓' : '2'}</span>
+            <span className="step-label">2. Theatre</span>
+          </div>
+          <div className="step-connector"></div>
+
+          <div className={`step-item ${selectedDate && selectedTime ? 'done' : selectedTheatre ? 'active' : ''}`}>
+            <span className="step-circle">{selectedDate && selectedTime ? '✓' : '3'}</span>
+            <span className="step-label">3. Date &amp; Time</span>
+          </div>
+          <div className="step-connector"></div>
+
+          <div className={`step-item ${selectedSeats.length > 0 ? 'done' : selectedTime ? 'active' : ''}`}>
+            <span className="step-circle">{selectedSeats.length > 0 ? '✓' : '4'}</span>
+            <span className="step-label">4. Seats</span>
+          </div>
+          <div className="step-connector"></div>
+
+          <div className={`step-item ${canProceed ? 'active' : ''}`}>
+            <span className="step-circle">5</span>
+            <span className="step-label">5. Summary</span>
+          </div>
+        </div>
       </div>
 
       {!selectedMovie ? (
@@ -49,31 +85,51 @@ function BookingPage() {
             No Movie Selected
           </h3>
           <p style={{ color: '#94a3b8', marginBottom: '24px' }}>
-            Please select a movie before choosing theatre and seats.
+            Please pick a 2026 blockbuster movie before choosing your theatre and seats.
           </p>
           <button
             type="button"
             className="btn-primary"
             onClick={() => navigate('/movies')}
           >
-            Browse Movies Now
+            Browse Movies Catalog
           </button>
         </div>
       ) : (
         <div className="booking-layout">
-          {/* 1. Selected Movie Section */}
+          {/* ── 1. Selected Movie Bar ── */}
           <div className="booking-card">
             <div className="booking-card-header">
               <span>🎬</span>
               <span>1. Selected Movie</span>
             </div>
             <div className="selected-movie-badge">
-              <div>
-                <div style={{ fontSize: '18px', fontWeight: 700, color: '#ffffff' }}>
-                  {selectedMovie.title}
-                </div>
-                <div style={{ fontSize: '13px', color: '#94a3b8', marginTop: '3px' }}>
-                  {selectedMovie.genre} • {selectedMovie.year}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                {selectedMovie.poster && (
+                  <img
+                    src={selectedMovie.poster}
+                    alt={selectedMovie.title}
+                    style={{
+                      width: '46px',
+                      height: '64px',
+                      objectFit: 'cover',
+                      borderRadius: '4px',
+                      border: '1px solid #2e3440',
+                    }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                )}
+                <div>
+                  <div style={{ fontSize: '18px', fontWeight: 700, color: '#f3f4f6' }}>
+                    {selectedMovie.title}
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#9ca3af', marginTop: '3px' }}>
+                    {selectedMovie.category && <span>{selectedMovie.category} Cinema • </span>}
+                    {selectedMovie.language && <span>{selectedMovie.language} • </span>}
+                    {selectedMovie.year && <span>{selectedMovie.year}</span>}
+                  </div>
                 </div>
               </div>
               <button
@@ -86,89 +142,94 @@ function BookingPage() {
             </div>
           </div>
 
-          {/* 2. Theatre Selection Section */}
+          {/* ── 2. Coimbatore Theatre Selection Section ── */}
           <div className="booking-card">
             <div className="booking-card-header">
               <span>🏛️</span>
-              <span>2. Choose Theatre</span>
+              <span>2. Choose Coimbatore Theatre Venue (10 Verified Cinemas)</span>
             </div>
             <TheatreList />
           </div>
 
-          {/* 3. Show Timing Section */}
+          {/* ── 3. Date & Showtime Selection Section ── */}
           <div className="booking-card">
             <div className="booking-card-header">
               <span>⏰</span>
-              <span>3. Choose Date &amp; Show Time</span>
+              <span>3. Choose Booking Date &amp; Showtime</span>
             </div>
             <ShowTiming />
           </div>
 
-          {/* 4. Seat Selection Section */}
+          {/* ── 4. Interactive 110-Seat Auditorium Layout ── */}
           <div className="booking-card">
             <div className="booking-card-header">
               <span>💺</span>
-              <span>4. Select Seats (Rs. {ticketPrice} per seat)</span>
+              <span>4. Reserve Your Seats (110 Seats Screen Layout)</span>
             </div>
             <SeatSelection />
           </div>
 
-          {/* 5. Price Details & Continue */}
+          {/* ── 5. Real-Time Price Details & Checkout ── */}
           <div className="booking-card">
             <div className="booking-card-header">
               <span>💳</span>
-              <span>5. Price Details</span>
+              <span>5. Pricing Details &amp; Summary</span>
             </div>
 
             <div className="price-breakdown">
               <div className="price-row">
                 <span>Selected Seats:</span>
-                <span style={{ color: selectedSeats.length > 0 ? '#a78bfa' : '#64748b', fontWeight: 600 }}>
+                <span style={{ color: selectedSeats.length > 0 ? '#f87171' : '#64748b', fontWeight: 700 }}>
                   {selectedSeats.length > 0 ? selectedSeats.join(', ') : 'None'}
                 </span>
               </div>
               <div className="price-row">
-                <span>Tickets:</span>
+                <span>Total Tickets:</span>
                 <span style={{ color: '#ffffff', fontWeight: 600 }}>
                   {selectedSeats.length}
                 </span>
               </div>
-              <div className="price-row">
-                <span>Price per Ticket:</span>
-                <span style={{ color: '#ffffff', fontWeight: 600 }}>
-                  Rs. {ticketPrice}
-                </span>
-              </div>
+
+              {priceBreakdown.Regular.count > 0 && (
+                <div className="price-row">
+                  <span>Regular Seats (A–E):</span>
+                  <span>{priceBreakdown.Regular.count} × ₹150 = ₹{priceBreakdown.Regular.total}</span>
+                </div>
+              )}
+
+              {priceBreakdown.Premium.count > 0 && (
+                <div className="price-row">
+                  <span>Premium Seats (F–H):</span>
+                  <span>{priceBreakdown.Premium.count} × ₹200 = ₹{priceBreakdown.Premium.total}</span>
+                </div>
+              )}
+
+              {priceBreakdown.Recliner.count > 0 && (
+                <div className="price-row">
+                  <span>Recliner Seats (I–J):</span>
+                  <span>{priceBreakdown.Recliner.count} × ₹300 = ₹{priceBreakdown.Recliner.total}</span>
+                </div>
+              )}
+
               <div className="price-row total-row">
-                <span>Total:</span>
-                <span className="total-amount">Rs. {totalAmount}</span>
+                <span>Grand Total:</span>
+                <span className="total-amount">₹{totalAmount}</span>
               </div>
             </div>
 
             {validationMessage && (
-              <div
-                style={{
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  color: '#fca5a5',
-                  padding: '10px 14px',
-                  borderRadius: '8px',
-                  fontSize: '13px',
-                  marginBottom: '16px',
-                }}
-              >
+              <div className="booking-validation-alert" role="alert">
                 {validationMessage}
               </div>
             )}
 
             <button
               type="button"
-              className="btn-primary"
+              className="btn-primary checkout-continue-btn"
               disabled={!canProceed}
               onClick={() => navigate('/summary')}
-              style={{ width: '100%' }}
             >
-              <span>Continue to Summary</span>
+              <span>Continue to Booking Summary</span>
               <span>→</span>
             </button>
           </div>

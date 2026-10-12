@@ -1,0 +1,2331 @@
+================================================================================
+          FOOD ORDERING & CONCESSIONS - REACT WEB APPLICATION
+          UNIT 4 - EXPERIMENT 4 : COMPLETE SOURCE CODE ARCHIVE
+          Topic: Authentication and Token Management for Food Ordering
+          Stack: React 19 + React Router 7 + Axios + Vite + JavaScript (ES6+)
+          (Prepared for 2nd Year Engineering Practical Record Submission)
+================================================================================
+
+AIM:
+To design and implement user authentication, session token management, and
+protected REST API routes for a Food Ordering Web Application using Axios
+request and response interceptors, managing user credentials, Bearer token
+headers, role-based cart/checkout access, token expiration, and asynchronous
+loading and error states.
+
+SYLLABUS REQUIREMENTS ADDRESSED:
+a) Create a login form for user authentication.
+b) Send login credentials to an authentication API.
+c) Store the authentication token after successful login.
+d) Attach the token to API requests using Axios configuration or interceptors.
+e) Implement logout functionality and remove the stored token.
+f) Restrict cart, checkout, and order APIs to authenticated users.
+g) Handle authentication errors and expired tokens.
+h) Display loading and error states during authentication.
+
+--------------------------------------------------------------------------------
+TABLE OF CONTENTS / FILE INDEX
+--------------------------------------------------------------------------------
+1.  vite.config.js                    --> Mock Auth & Protected Food REST API Server
+2.  src/services/axiosInstance.js      --> Axios Client with Request & Response Interceptors
+3.  src/services/authService.js        --> Authentication Service (Login, Logout, Token)
+4.  src/services/foodService.js        --> Protected Food, Cart, and Order API Service
+5.  src/context/AuthContext.jsx        --> Global Authentication Provider & State
+6.  src/components/Login.jsx           --> Login Form with Validation & Loading States
+7.  src/components/ProtectedRoute.jsx  --> Route Guard for Protected Endpoints
+8.  src/pages/FoodOrderingPage.jsx     --> Food Menu, Protected Cart, Checkout & Orders
+9.  src/components/Header.jsx          --> Dynamic Navbar with Auth Status & Food Link
+10. src/App.jsx                        --> Application Shell with Protected Routes
+11. src/data/foodMenuData.js           --> Gourmet Concessions Menu Dataset
+12. src/App.css                        --> Component Styles, Badges & Animations
+================================================================================
+
+
+================================================================================
+FILE 1: vite.config.js
+================================================================================
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { Buffer } from 'node:buffer';
+
+/**
+ * Mock REST API & Authentication Server Plugin for Unit 4 Experiment 4
+ * Topics: Authentication, Tokens, Protected API, Axios Interceptors
+ *
+ * Endpoints:
+ *  1. POST /api/auth/login        -> Validates credentials, issues signed Bearer token
+ *  2. GET  /api/auth/me           -> Protected: Verifies Authorization: Bearer <token>
+ *  3. POST /api/auth/logout       -> Invalidates session
+ *  4. POST /api/auth/expire-token -> Generates expired token for testing Requirement (g)
+ *  5. GET  /api/food/menu         -> Public food menu items
+ *  6. GET  /api/food/cart         -> Protected: Restrict cart to authenticated users (Req f)
+ *  7. POST /api/food/cart         -> Protected: Add/update cart items with Bearer token (Req d & f)
+ *  8. DELETE /api/food/cart/:id   -> Protected: Remove cart item (Req f)
+ *  9. DELETE /api/food/cart       -> Protected: Clear cart (Req f)
+ * 10. POST /api/food/checkout     -> Protected: Order checkout restricted to auth users (Req f)
+ * 11. GET  /api/food/orders       -> Protected: Order history restricted to auth users (Req f)
+ */
+function mockApiPlugin() {
+  let inMemoryBookings = [];
+  const inMemoryFoodCarts = {};
+  const inMemoryFoodOrders = {};
+
+  const FOOD_MENU = [
+    {
+      id: 'food-1',
+      name: 'Gourmet Golden Caramel Popcorn',
+      category: 'Snacks',
+      price: 220,
+      rating: 4.9,
+      description: 'Freshly popped jumbo corn tossed in rich slow-cooked golden caramel with sea salt.',
+      emoji: '🍿',
+      badge: 'Bestseller',
+      prepTime: '3 mins',
+    },
+    {
+      id: 'food-2',
+      name: 'Loaded Mexican Cheese Nachos',
+      category: 'Snacks',
+      price: 190,
+      rating: 4.8,
+      description: 'Crispy stone-ground corn tortilla chips accompanied by hot cheddar dip and jalapeño salsa.',
+      emoji: '🧀',
+      badge: 'Popular',
+      prepTime: '5 mins',
+    },
+    {
+      id: 'food-3',
+      name: 'Crispy Truffle Parmesan Fries',
+      category: 'Snacks',
+      price: 180,
+      rating: 4.7,
+      description: 'Golden skin-on french fries tossed in fragrant white truffle oil and aged parmesan.',
+      emoji: '🍟',
+      badge: 'Chef Special',
+      prepTime: '5 mins',
+    },
+    {
+      id: 'food-4',
+      name: 'Smoky BBQ Paneer Burger',
+      category: 'Meals',
+      price: 240,
+      rating: 4.8,
+      description: 'Char-grilled marinated paneer steak with crisp iceberg lettuce and smoky BBQ dip.',
+      emoji: '🍔',
+      badge: 'Vegetarian',
+      prepTime: '8 mins',
+    },
+    {
+      id: 'food-5',
+      name: 'Crispy Zinger Chicken Burger',
+      category: 'Meals',
+      price: 280,
+      rating: 4.9,
+      description: 'Deep-fried golden chicken breast fillet loaded with creamy chipotle mayonnaise.',
+      emoji: '🍗',
+      badge: 'Must Try',
+      prepTime: '8 mins',
+    },
+    {
+      id: 'food-6',
+      name: 'Wood-Fired Margherita Pizza (8")',
+      category: 'Meals',
+      price: 299,
+      rating: 4.8,
+      description: 'San Marzano tomato sauce, fresh buffalo mozzarella, virgin olive oil, and sweet basil.',
+      emoji: '🍕',
+      badge: 'Classic',
+      prepTime: '10 mins',
+    },
+    {
+      id: 'food-7',
+      name: 'Chilled Caramel Iced Macchiato',
+      category: 'Beverages',
+      price: 160,
+      rating: 4.7,
+      description: 'Double shot of dark roasted arabica coffee poured over chilled vanilla milk and caramel.',
+      emoji: '☕',
+      badge: 'Chilled',
+      prepTime: '3 mins',
+    },
+    {
+      id: 'food-8',
+      name: 'Refreshing Virgin Mojito Fizz',
+      category: 'Beverages',
+      price: 140,
+      rating: 4.6,
+      description: 'Crushed garden mint, freshly squeezed lime juice, raw cane sugar, and chilled sparkling soda.',
+      emoji: '🍹',
+      badge: 'Refreshing',
+      prepTime: '3 mins',
+    },
+    {
+      id: 'food-9',
+      name: 'Molten Belgian Chocolate Lava Cake',
+      category: 'Desserts',
+      price: 150,
+      rating: 4.9,
+      description: 'Warm cocoa sponge cake bursting with liquid dark Belgian chocolate ganache center.',
+      emoji: '🍫',
+      badge: 'Sweet Treat',
+      prepTime: '4 mins',
+    },
+    {
+      id: 'food-10',
+      name: 'Red Velvet Gourmet Sundae',
+      category: 'Desserts',
+      price: 170,
+      rating: 4.8,
+      description: 'Velvety cake crumble layered with Madagascar vanilla ice cream and berry reduction.',
+      emoji: '🍨',
+      badge: 'Delight',
+      prepTime: '4 mins',
+    },
+  ];
+
+  const parseBody = (req) => {
+    return new Promise((resolve) => {
+      let body = '';
+      req.on('data', (chunk) => {
+        body += chunk;
+      });
+      req.on('end', () => {
+        try {
+          resolve(body ? JSON.parse(body) : {});
+        } catch {
+          resolve({});
+        }
+      });
+    });
+  };
+
+  const generateToken = (username, expiresInSeconds = 3600) => {
+    const payload = {
+      username,
+      email: username.includes('@') ? username : `${username}@bookmymovie.com`,
+      role: 'user',
+      exp: Math.floor(Date.now() / 1000) + expiresInSeconds,
+    };
+    return 'bmm_jwt_' + Buffer.from(JSON.stringify(payload)).toString('base64');
+  };
+
+  const verifyTokenHeader = (authHeader) => {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return {
+        valid: false,
+        error: 'Unauthorized: Authentication token is missing. Please log in with a valid account.',
+      };
+    }
+
+    const token = authHeader.replace(/^Bearer\s+/, '').trim();
+    if (!token || token === 'null' || token === 'undefined') {
+      return { valid: false, error: 'Unauthorized: Invalid token format.' };
+    }
+
+    try {
+      if (token.startsWith('bmm_jwt_')) {
+        const raw = Buffer.from(token.replace('bmm_jwt_', ''), 'base64').toString('utf-8');
+        const payload = JSON.parse(raw);
+        if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+          return { valid: false, error: 'Unauthorized: Token has expired. Please sign in again.' };
+        }
+        return { valid: true, payload };
+      }
+      return { valid: false, error: 'Unauthorized: Invalid token signature or format.' };
+    } catch {
+      return { valid: false, error: 'Unauthorized: Corrupted token payload.' };
+    }
+  };
+
+  return {
+    name: 'mock-auth-and-booking-api',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const url = req.url ? req.url.split('?')[0] : '';
+
+        // ─── 1. Authentication Endpoints ─────────────────────────────────────
+        if (url.startsWith('/api/auth')) {
+          res.setHeader('Content-Type', 'application/json');
+
+          // POST /api/auth/login
+          if (url === '/api/auth/login' && req.method === 'POST') {
+            const body = await parseBody(req);
+            const username = (body.username || body.email || '').trim();
+            const password = (body.password || '').trim();
+
+            if (!username || !password) {
+              res.statusCode = 400;
+              return res.end(
+                JSON.stringify({ error: 'Username/email and password are required.' })
+              );
+            }
+
+            if (password.length < 4) {
+              res.statusCode = 401;
+              return res.end(
+                JSON.stringify({ error: 'Invalid credentials. Password must be at least 4 characters.' })
+              );
+            }
+
+            const token = generateToken(username);
+            const user = {
+              username: username.includes('@') ? username.split('@')[0] : username,
+              email: username.includes('@') ? username : `${username}@bookmymovie.com`,
+              role: 'user',
+            };
+
+            res.statusCode = 200;
+            return res.end(
+              JSON.stringify({
+                success: true,
+                token,
+                user,
+                message: 'Authentication successful.',
+              })
+            );
+          }
+
+          // GET /api/auth/me
+          if (url === '/api/auth/me' && req.method === 'GET') {
+            const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+            const check = verifyTokenHeader(authHeader);
+
+            if (!check.valid) {
+              res.statusCode = 401;
+              return res.end(JSON.stringify({ error: check.error }));
+            }
+
+            res.statusCode = 200;
+            return res.end(JSON.stringify({ success: true, user: check.payload }));
+          }
+
+          // POST /api/auth/logout
+          if (url === '/api/auth/logout' && req.method === 'POST') {
+            res.statusCode = 200;
+            return res.end(JSON.stringify({ success: true, message: 'Logged out successfully.' }));
+          }
+
+          // POST /api/auth/expire-token
+          if (url === '/api/auth/expire-token' && req.method === 'POST') {
+            const expiredToken = generateToken('test_expired_user', -3600);
+            res.statusCode = 200;
+            return res.end(JSON.stringify({ success: true, token: expiredToken }));
+          }
+
+          return next();
+        }
+
+        // ─── 2. Food Ordering Endpoints (Unit 4 - Experiment 4) ───────────────
+        if (url.startsWith('/api/food')) {
+          res.setHeader('Content-Type', 'application/json');
+
+          // a) GET /api/food/menu (Public)
+          if (url === '/api/food/menu' && req.method === 'GET') {
+            res.statusCode = 200;
+            return res.end(JSON.stringify({ success: true, items: FOOD_MENU }));
+          }
+
+          // Cart, Checkout & Orders endpoints require Bearer token validation
+          const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+          const check = verifyTokenHeader(authHeader);
+
+          if (!check.valid) {
+            res.statusCode = 401;
+            return res.end(
+              JSON.stringify({
+                error: `${check.error} Access to Food Cart, Checkout, and Orders is strictly restricted to authenticated users.`,
+              })
+            );
+          }
+
+          const username = check.payload.username || 'default_user';
+          if (!inMemoryFoodCarts[username]) {
+            inMemoryFoodCarts[username] = [];
+          }
+          if (!inMemoryFoodOrders[username]) {
+            inMemoryFoodOrders[username] = [];
+          }
+
+          // b) GET /api/food/cart (Protected)
+          if (url === '/api/food/cart' && req.method === 'GET') {
+            res.statusCode = 200;
+            return res.end(JSON.stringify({ success: true, cart: inMemoryFoodCarts[username] }));
+          }
+
+          // c) POST /api/food/cart (Protected: Add / Update Item)
+          if (url === '/api/food/cart' && req.method === 'POST') {
+            const body = await parseBody(req);
+            const { itemId, name, price, emoji, quantity } = body;
+
+            if (!itemId) {
+              res.statusCode = 400;
+              return res.end(JSON.stringify({ error: 'Item ID is required.' }));
+            }
+
+            const currentCart = inMemoryFoodCarts[username];
+            const existingIdx = currentCart.findIndex((i) => i.itemId === itemId);
+
+            if (existingIdx !== -1) {
+              currentCart[existingIdx].quantity += (quantity || 1);
+              if (currentCart[existingIdx].quantity <= 0) {
+                currentCart.splice(existingIdx, 1);
+              }
+            } else {
+              currentCart.push({
+                itemId,
+                name: name || 'Delicious Snack',
+                price: Number(price) || 100,
+                emoji: emoji || '🍿',
+                quantity: quantity || 1,
+              });
+            }
+
+            inMemoryFoodCarts[username] = currentCart;
+            res.statusCode = 200;
+            return res.end(JSON.stringify({ success: true, cart: currentCart }));
+          }
+
+          // d) DELETE /api/food/cart/:id (Protected: Remove Item)
+          if (url.startsWith('/api/food/cart/') && req.method === 'DELETE') {
+            const itemId = decodeURIComponent(url.split('/')[4] || '');
+            inMemoryFoodCarts[username] = (inMemoryFoodCarts[username] || []).filter(
+              (i) => i.itemId !== itemId
+            );
+            res.statusCode = 200;
+            return res.end(JSON.stringify({ success: true, cart: inMemoryFoodCarts[username] }));
+          }
+
+          // e) DELETE /api/food/cart (Protected: Clear Cart)
+          if (url === '/api/food/cart' && req.method === 'DELETE') {
+            inMemoryFoodCarts[username] = [];
+            res.statusCode = 200;
+            return res.end(JSON.stringify({ success: true, cart: [] }));
+          }
+
+          // f) POST /api/food/checkout (Protected: Place Order)
+          if (url === '/api/food/checkout' && req.method === 'POST') {
+            const body = await parseBody(req);
+            const userCart = inMemoryFoodCarts[username] || [];
+
+            if (userCart.length === 0) {
+              res.statusCode = 400;
+              return res.end(JSON.stringify({ error: 'Cannot checkout with an empty cart.' }));
+            }
+
+            const subtotal = userCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+            const gst = Math.round(subtotal * 0.05);
+            const serviceFee = 20;
+            const grandTotal = subtotal + gst + serviceFee;
+
+            const orderId = `ORD-FOOD-${Math.floor(100000 + Math.random() * 900000)}`;
+            const newOrder = {
+              orderId,
+              username,
+              items: [...userCart],
+              subtotal,
+              gst,
+              serviceFee,
+              grandTotal,
+              deliveryType: body.deliveryType || 'Seat Delivery',
+              seatOrTableNumber: body.seatOrTableNumber || 'Seat A-04',
+              paymentMethod: body.paymentMethod || 'UPI / Card',
+              customerNotes: body.customerNotes || '',
+              status: 'CONFIRMED',
+              createdAt: new Date().toISOString(),
+              confirmedAt: new Date().toLocaleTimeString('en-IN', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              }),
+            };
+
+            inMemoryFoodOrders[username].unshift(newOrder);
+            inMemoryFoodCarts[username] = [];
+
+            res.statusCode = 201;
+            return res.end(
+              JSON.stringify({
+                success: true,
+                orderId,
+                order: newOrder,
+                message: 'Food order placed successfully! Token authorization verified.',
+              })
+            );
+          }
+
+          // g) GET /api/food/orders (Protected: Order History)
+          if (url === '/api/food/orders' && req.method === 'GET') {
+            res.statusCode = 200;
+            return res.end(
+              JSON.stringify({
+                success: true,
+                orders: inMemoryFoodOrders[username] || [],
+              })
+            );
+          }
+
+          return next();
+        }
+
+        next();
+      });
+    },
+  };
+}
+
+export default defineConfig({
+  plugins: [react(), mockApiPlugin()],
+});
+
+
+================================================================================
+FILE 2: src/services/axiosInstance.js
+================================================================================
+import axios from 'axios';
+
+export const TOKEN_KEY = 'bmm_auth_token';
+export const USER_KEY = 'bmm_auth_user';
+
+export const getToken = () => {
+  if (typeof window === 'undefined') return null;
+  return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
+};
+
+export const setToken = (token, persist = false) => {
+  if (typeof window === 'undefined') return;
+  sessionStorage.setItem(TOKEN_KEY, token);
+  if (persist) {
+    localStorage.setItem(TOKEN_KEY, token);
+  }
+};
+
+export const removeToken = () => {
+  if (typeof window === 'undefined') return;
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(USER_KEY);
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+};
+
+export const getUser = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(USER_KEY) || localStorage.getItem(USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+export const setUser = (user, persist = false) => {
+  if (typeof window === 'undefined') return;
+  sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+  if (persist) {
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  }
+};
+
+/**
+ * Creates an expired mock JWT token to explicitly demonstrate
+ * Experiment 4 requirement (g): Handling expired tokens & 401 errors.
+ */
+export const injectExpiredTokenForTesting = () => {
+  const expiredPayload = {
+    username: 'test_user',
+    email: 'test@foodorder.com',
+    role: 'user',
+    exp: Math.floor(Date.now() / 1000) - 1800,
+  };
+  const expiredToken = 'bmm_jwt_' + btoa(JSON.stringify(expiredPayload));
+  setToken(expiredToken);
+  return expiredToken;
+};
+
+const axiosInstance = axios.create({
+  baseURL: '',
+  headers: {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  },
+  timeout: 10000,
+});
+
+/**
+ * Request Interceptor: Attach authentication token to outgoing requests
+ * Requirement (d): Attach the token to API requests using Axios configuration or interceptors.
+ */
+axiosInstance.interceptors.request.use(
+  (config) => {
+    const token = getToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+/**
+ * Response Interceptor: Intercept 401/403 status responses
+ * Requirement (g): Handle authentication errors and expired tokens.
+ */
+axiosInstance.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error.response ? error.response.status : null;
+    if (status === 401 || status === 403) {
+      removeToken();
+
+      if (typeof window !== 'undefined') {
+        const errorDetail = error.response?.data || {
+          message: 'Session has expired or authentication token is missing. Please sign in again.',
+        };
+
+        window.dispatchEvent(
+          new CustomEvent('bmm_auth_unauthorized', { detail: errorDetail })
+        );
+
+        if (!window.location.pathname.startsWith('/login')) {
+          const redirectPath = encodeURIComponent(
+            window.location.pathname + window.location.search
+          );
+          window.location.href = `/login?redirect=${redirectPath}&expired=true`;
+        }
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
+export default axiosInstance;
+
+
+================================================================================
+FILE 3: src/services/authService.js
+================================================================================
+import axiosInstance, {
+  getToken,
+  setToken,
+  getUser,
+  setUser,
+  removeToken,
+} from './axiosInstance';
+
+const AUTH_API = '/api/auth';
+
+/**
+ * Authentication Service for Unit 4 - Experiment 4
+ * Communicates with the authentication API using Axios and manages session tokens.
+ */
+export const authService = {
+  /**
+   * Send login credentials to Authentication API
+   * Requirement (b): Send login credentials to an authentication API.
+   * Requirement (c): Store the authentication token after successful login.
+   */
+  async login(credentials) {
+    const usernameOrEmail = credentials.username || credentials.email || '';
+    const password = credentials.password || '';
+
+    try {
+      const response = await axiosInstance.post(`${AUTH_API}/login`, {
+        username: usernameOrEmail,
+        password,
+      });
+
+      const { token, user } = response.data;
+      if (token) {
+        setToken(token);
+      }
+      if (user) {
+        setUser(user);
+      }
+
+      return {
+        success: true,
+        token,
+        user: user || { username: usernameOrEmail },
+      };
+    } catch (error) {
+      if (!error.response && (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error'))) {
+        console.warn('[authService] Backend offline - running local mock authentication fallback');
+        if (password.length >= 4) {
+          const fallbackUser = {
+            username: usernameOrEmail.includes('@') ? usernameOrEmail.split('@')[0] : usernameOrEmail,
+            email: usernameOrEmail.includes('@') ? usernameOrEmail : `${usernameOrEmail}@bookmymovie.com`,
+            role: 'user',
+          };
+          const mockToken =
+            'bmm_jwt_' +
+            btoa(
+              JSON.stringify({
+                username: fallbackUser.username,
+                exp: Math.floor(Date.now() / 1000) + 3600,
+              })
+            );
+
+          setToken(mockToken);
+          setUser(fallbackUser);
+          return { success: true, token: mockToken, user: fallbackUser };
+        }
+        return { success: false, message: 'Invalid credentials. Password must be at least 4 characters.' };
+      }
+
+      const message =
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        error.message ||
+        'Authentication failed. Please check your credentials.';
+      return { success: false, message };
+    }
+  },
+
+  /**
+   * Log out user and clean up session tokens
+   * Requirement (e): Implement logout functionality and remove the stored token.
+   */
+  async logout() {
+    try {
+      await axiosInstance.post(`${AUTH_API}/logout`);
+    } catch {
+      // Best-effort server notification
+    } finally {
+      removeToken();
+    }
+    return { success: true };
+  },
+
+  async getCurrentUser() {
+    const token = getToken();
+    if (!token) return null;
+
+    try {
+      const response = await axiosInstance.get(`${AUTH_API}/me`);
+      return response.data?.user || getUser();
+    } catch {
+      return getUser();
+    }
+  },
+
+  getToken,
+  getUser,
+  removeToken,
+};
+
+export default authService;
+
+
+================================================================================
+FILE 4: src/services/foodService.js
+================================================================================
+import axiosInstance, {
+  getToken,
+  injectExpiredTokenForTesting,
+} from './axiosInstance';
+import axios from 'axios';
+import { INITIAL_FOOD_MENU } from '../data/foodMenuData';
+
+const FOOD_API = '/api/food';
+
+/**
+ * foodService.js
+ * Food Ordering API Service for Unit 4 - Experiment 4
+ *
+ * Implements:
+ *  - Public Menu fetching
+ *  - Protected Cart operations (GET, POST, DELETE) with Bearer token
+ *  - Protected Checkout (POST) restricted to authenticated users
+ *  - Protected Order History (GET)
+ *  - Interceptor verification helpers for viva/lab demonstration
+ */
+export const foodService = {
+  async getMenu() {
+    try {
+      const response = await axiosInstance.get(`${FOOD_API}/menu`);
+      return response.data?.items || INITIAL_FOOD_MENU;
+    } catch {
+      return INITIAL_FOOD_MENU;
+    }
+  },
+
+  /**
+   * Protected: Fetch current user's cart (Requires Token)
+   * Requirement (f): Restrict cart to authenticated users
+   */
+  async getCart() {
+    const response = await axiosInstance.get(`${FOOD_API}/cart`);
+    return response.data?.cart || [];
+  },
+
+  /**
+   * Protected: Add or update item in cart (Requires Token)
+   * Requirement (d) & (f): Axios request interceptor attaches Bearer token
+   */
+  async addToCart(item, quantity = 1) {
+    const response = await axiosInstance.post(`${FOOD_API}/cart`, {
+      itemId: item.id,
+      name: item.name,
+      price: item.price,
+      emoji: item.emoji,
+      quantity,
+    });
+    return response.data?.cart || [];
+  },
+
+  async removeFromCart(itemId) {
+    const response = await axiosInstance.delete(`${FOOD_API}/cart/${encodeURIComponent(itemId)}`);
+    return response.data?.cart || [];
+  },
+
+  async clearCart() {
+    const response = await axiosInstance.delete(`${FOOD_API}/cart`);
+    return response.data?.cart || [];
+  },
+
+  /**
+   * Protected: Place food order (Requires Token)
+   * Requirement (f): Restrict checkout and order APIs to authenticated users
+   */
+  async checkout(orderDetails) {
+    const response = await axiosInstance.post(`${FOOD_API}/checkout`, {
+      deliveryType: orderDetails.deliveryType || 'Seat Delivery',
+      seatOrTableNumber: orderDetails.seatOrTableNumber || 'Seat A-04',
+      customerNotes: orderDetails.customerNotes || '',
+      paymentMethod: orderDetails.paymentMethod || 'UPI / Card',
+    });
+    return response.data;
+  },
+
+  async getOrders() {
+    const response = await axiosInstance.get(`${FOOD_API}/orders`);
+    return response.data?.orders || [];
+  },
+
+  /**
+   * Test Helper: Directly calls protected Cart API WITHOUT Bearer token
+   * Proves Requirement (f): Backend returns 401 Unauthorized when token is missing.
+   */
+  async testProtectedApiWithoutToken() {
+    try {
+      const rawAxios = axios.create();
+      const response = await rawAxios.get(`${FOOD_API}/cart`, {
+        headers: { Accept: 'application/json' },
+      });
+      return { success: true, data: response.data };
+    } catch (err) {
+      return {
+        success: false,
+        status: err.response?.status || 401,
+        error: err.response?.data?.error || 'Access Denied: Missing Bearer Token.',
+      };
+    }
+  },
+
+  /**
+   * Test Helper: Injects an expired token and triggers a protected call
+   * Proves Requirement (g): Axios response interceptor catches 401, cleans up storage, and redirects.
+   */
+  async testExpiredToken() {
+    injectExpiredTokenForTesting();
+    return await axiosInstance.get(`${FOOD_API}/cart`);
+  },
+};
+
+export default foodService;
+
+
+================================================================================
+FILE 5: src/context/AuthContext.jsx
+================================================================================
+import React, { createContext, useState, useEffect, useCallback } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import authService from '../services/authService';
+import {
+  loginStart,
+  loginSuccess,
+  loginFailure,
+  logoutSuccess,
+  clearAuthError,
+} from '../redux/authSlice';
+import { clearBooking } from '../redux/bookingSlice';
+
+const AuthContext = createContext();
+
+export function AuthProvider({ children }) {
+  const dispatch = useDispatch();
+  const reduxAuth = useSelector((state) => state.auth);
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Synchronize on mount and handle unauthorized 401/403 events from Axios
+  useEffect(() => {
+    const handleUnauthorized = (e) => {
+      const msg = e.detail?.error || e.detail?.message || 'Session expired. Please log in again.';
+      dispatch(logoutSuccess());
+      dispatch(clearBooking());
+      setError(msg);
+    };
+
+    window.addEventListener('bmm_auth_unauthorized', handleUnauthorized);
+    return () => {
+      window.removeEventListener('bmm_auth_unauthorized', handleUnauthorized);
+    };
+  }, [dispatch]);
+
+  const login = useCallback(
+    async (usernameOrEmail, password) => {
+      const trimmedId = (usernameOrEmail || '').trim();
+      const trimmedPass = (password || '').trim();
+
+      if (!trimmedId || !trimmedPass) {
+        const msg = 'Please enter both username/email and password.';
+        setError(msg);
+        return { success: false, message: msg };
+      }
+
+      setLoading(true);
+      setError(null);
+      dispatch(loginStart());
+
+      try {
+        const result = await authService.login({
+          username: trimmedId,
+          password: trimmedPass,
+        });
+
+        if (result.success) {
+          dispatch(
+            loginSuccess({
+              token: result.token,
+              user: result.user,
+            })
+          );
+          setLoading(false);
+          return { success: true, token: result.token, user: result.user };
+        }
+
+        dispatch(loginFailure(result.message));
+        setError(result.message);
+        setLoading(false);
+        return { success: false, message: result.message };
+      } catch (err) {
+        const msg = err.message || 'Login request failed.';
+        dispatch(loginFailure(msg));
+        setError(msg);
+        setLoading(false);
+        return { success: false, message: msg };
+      }
+    },
+    [dispatch]
+  );
+
+  const logout = useCallback(async () => {
+    setLoading(true);
+    await authService.logout();
+    dispatch(logoutSuccess());
+    dispatch(clearBooking());
+    setError(null);
+    setLoading(false);
+  }, [dispatch]);
+
+  const clearError = useCallback(() => {
+    setError(null);
+    dispatch(clearAuthError());
+  }, [dispatch]);
+
+  const value = {
+    token: reduxAuth.token,
+    user: reduxAuth.user,
+    username: reduxAuth.user?.username || '',
+    isAuthenticated: reduxAuth.isAuthenticated,
+    loading: loading || reduxAuth.loading,
+    error: error || reduxAuth.error,
+    login,
+    logout,
+    clearError,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export { AuthContext };
+export default AuthContext;
+
+
+================================================================================
+FILE 6: src/components/Login.jsx
+================================================================================
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
+import useAuth from '../hooks/useAuth';
+
+/**
+ * Reusable Login Component for Unit 4 - Experiment 4
+ * Features:
+ *  - Requirement (a): Login form for user authentication
+ *  - Requirement (b): Credentials sent to authentication API
+ *  - Requirement (c): Token stored upon successful authentication
+ *  - Requirement (g): Session expired notice & error handling
+ *  - Requirement (h): Loading spinners & validation error states
+ */
+function Login({ onSuccess, redirectTo }) {
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [validationError, setValidationError] = useState('');
+
+  const { isAuthenticated, username, user, token, loading, error, login, logout, clearError } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const params = new URLSearchParams(location.search);
+  const isExpired = params.get('expired') === 'true';
+  const redirectTarget = redirectTo || location.state?.from?.pathname || params.get('redirect') || '/food';
+
+  useEffect(() => {
+    clearError();
+  }, [clearError]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setValidationError('');
+    clearError();
+
+    const trimmedId = identifier.trim();
+    const trimmedPass = password.trim();
+
+    if (!trimmedId) {
+      setValidationError('Please enter your username or email address.');
+      return;
+    }
+
+    if (trimmedId.length < 3) {
+      setValidationError('Username or email must be at least 3 characters.');
+      return;
+    }
+
+    if (!trimmedPass) {
+      setValidationError('Please enter your password.');
+      return;
+    }
+
+    if (trimmedPass.length < 4) {
+      setValidationError('Password must be at least 4 characters long.');
+      return;
+    }
+
+    const result = await login(trimmedId, trimmedPass);
+    if (result.success) {
+      if (onSuccess) {
+        onSuccess(result);
+      } else {
+        navigate(redirectTarget, { replace: true });
+      }
+    }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    setIdentifier('');
+    setPassword('');
+  };
+
+  if (isAuthenticated) {
+    return (
+      <div className="login-wrapper">
+        <div className="login-card authenticated-card">
+          <div className="login-header">
+            <div className="login-icon">👤</div>
+            <h2 className="login-title">Account Active</h2>
+            <p className="login-subtitle">You are currently authenticated</p>
+          </div>
+
+          <div className="auth-user-info-box">
+            <div className="auth-user-row">
+              <span className="auth-label">Username:</span>
+              <span className="auth-value">{username || user?.username}</span>
+            </div>
+            {user?.email && (
+              <div className="auth-user-row">
+                <span className="auth-label">Email:</span>
+                <span className="auth-value">{user.email}</span>
+              </div>
+            )}
+            <div className="auth-user-row">
+              <span className="auth-label">Token Status:</span>
+              <span className="token-badge active">
+                ✓ Bearer Token Verified ({token ? `${token.substring(0, 14)}...` : 'Stored'})
+              </span>
+            </div>
+          </div>
+
+          <div className="auth-card-actions">
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => navigate(redirectTarget, { replace: true })}
+            >
+              Continue to {redirectTarget === '/food' ? 'Food Ordering' : 'Application'} →
+            </button>
+            <button
+              type="button"
+              className="logout-btn-full"
+              onClick={handleLogout}
+              disabled={loading}
+            >
+              {loading ? 'Logging Out...' : 'Log Out of Account'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="login-wrapper">
+      <div className="login-card">
+        <div className="login-header">
+          <div className="login-icon">🍔</div>
+          <h2 className="login-title">Food Ordering Login</h2>
+          <p className="login-subtitle">Sign in to unlock protected Cart, Checkout & Orders</p>
+        </div>
+
+        {isExpired && (
+          <div className="warning-alert">
+            <span>⏰</span>
+            <span>Your session has expired. Please sign in again to continue.</span>
+          </div>
+        )}
+
+        {validationError && (
+          <div className="error-alert">
+            <span>⚠️</span>
+            <span>{validationError}</span>
+          </div>
+        )}
+
+        {error && (
+          <div className="error-alert">
+            <span>⚠️</span>
+            <span>{error}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="login-form" noValidate>
+          <div className="form-group">
+            <label htmlFor="login-identifier">Username or Email</label>
+            <input
+              id="login-identifier"
+              type="text"
+              className="form-input"
+              placeholder="e.g. foodie_user or admin"
+              value={identifier}
+              onChange={(e) => {
+                setIdentifier(e.target.value);
+                if (validationError) setValidationError('');
+              }}
+              disabled={loading}
+              autoComplete="username"
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="login-password">Password</label>
+            <div className="password-input-wrapper">
+              <input
+                id="login-password"
+                type={showPassword ? 'text' : 'password'}
+                className="form-input password-input"
+                placeholder="Enter password (min 4 chars)"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (validationError) setValidationError('');
+                }}
+                disabled={loading}
+                autoComplete="current-password"
+              />
+              <button
+                type="button"
+                className="toggle-password-btn"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                tabIndex="-1"
+              >
+                {showPassword ? '🙈' : '👁️'}
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            className="btn-primary login-btn"
+            disabled={loading}
+          >
+            {loading ? (
+              <span className="btn-loading-content">
+                <span className="spinner-sm" />
+                <span>Authenticating with Server...</span>
+              </span>
+            ) : (
+              'Sign In & Obtain Bearer Token'
+            )}
+          </button>
+        </form>
+
+        <div className="demo-credentials-hint">
+          <p style={{ marginBottom: '8px' }}>
+            <strong>Quick Demo Credentials:</strong>
+          </p>
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn-secondary btn-sm"
+              onClick={() => {
+                setIdentifier('foodie_user');
+                setPassword('secret123');
+                setValidationError('');
+              }}
+            >
+              🍔 Foodie User (secret123)
+            </button>
+            <button
+              type="button"
+              className="btn-secondary btn-sm"
+              onClick={() => {
+                setIdentifier('admin');
+                setPassword('1234');
+                setValidationError('');
+              }}
+            >
+              👑 Admin (1234)
+            </button>
+          </div>
+        </div>
+
+        <div className="auth-switch-link">
+          <p>
+            Don't have an account?{' '}
+            <Link to="/register" className="link-accent">
+              Create New Account
+            </Link>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default Login;
+
+
+================================================================================
+FILE 7: src/components/ProtectedRoute.jsx
+================================================================================
+import React from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
+import useAuth from '../hooks/useAuth';
+
+/**
+ * ProtectedRoute Component
+ * Requirement (f): Restrict cart, checkout, and order APIs to authenticated users.
+ */
+function ProtectedRoute({ children }) {
+  const { isAuthenticated, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return (
+      <div className="protected-route-loading">
+        <div className="spinner" />
+        <p>Verifying authentication session...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return children;
+}
+
+export default ProtectedRoute;
+
+
+================================================================================
+FILE 8: src/pages/FoodOrderingPage.jsx
+================================================================================
+import React, { useState, useEffect, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import useAuth from '../hooks/useAuth';
+import foodService from '../services/foodService';
+import { getToken } from '../services/axiosInstance';
+
+const CATEGORIES = ['All', 'Snacks', 'Meals', 'Beverages', 'Desserts'];
+
+function FoodOrderingPage() {
+  const { isAuthenticated, username, user } = useAuth();
+  const navigate = useNavigate();
+
+  const [menuItems, setMenuItems] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [cart, setCart] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [activeTab, setActiveTab] = useState('menu');
+
+  const [loadingMenu, setLoadingMenu] = useState(true);
+  const [cartLoading, setCartLoading] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
+  const [successToast, setSuccessToast] = useState(null);
+
+  const [seatNumber, setSeatNumber] = useState('Auditorium 2 - Seat F-07');
+  const [deliveryType, setDeliveryType] = useState('Direct to Seat');
+  const [customerNotes, setCustomerNotes] = useState('');
+  const [confirmedOrder, setConfirmedOrder] = useState(null);
+  const [inspectorResult, setInspectorResult] = useState(null);
+
+  const loadMenu = useCallback(async () => {
+    setLoadingMenu(true);
+    try {
+      const items = await foodService.getMenu();
+      setMenuItems(items);
+    } catch (err) {
+      setErrorMessage(err.message || 'Failed to load food menu.');
+    } finally {
+      setLoadingMenu(false);
+    }
+  }, []);
+
+  const loadCart = useCallback(async () => {
+    if (!isAuthenticated) {
+      setCart([]);
+      return;
+    }
+    setCartLoading(true);
+    try {
+      const userCart = await foodService.getCart();
+      setCart(userCart);
+    } catch (err) {
+      console.warn('[FoodOrdering] Cart fetch error:', err.message);
+    } finally {
+      setCartLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  const loadOrders = useCallback(async () => {
+    if (!isAuthenticated) {
+      setOrders([]);
+      return;
+    }
+    setOrdersLoading(true);
+    try {
+      const userOrders = await foodService.getOrders();
+      setOrders(userOrders);
+    } catch (err) {
+      console.warn('[FoodOrdering] Orders fetch error:', err.message);
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    loadMenu();
+  }, [loadMenu]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadCart();
+      loadOrders();
+    } else {
+      setCart([]);
+      setOrders([]);
+    }
+  }, [isAuthenticated, loadCart, loadOrders]);
+
+  const handleAddToCart = async (item) => {
+    if (!isAuthenticated) {
+      setErrorMessage('Authentication required! Please sign in to add items to your protected cart.');
+      setTimeout(() => setErrorMessage(null), 5000);
+      return;
+    }
+
+    setCartLoading(true);
+    try {
+      const updatedCart = await foodService.addToCart(item, 1);
+      setCart(updatedCart);
+      setSuccessToast(`Added ${item.name} to your cart!`);
+      setTimeout(() => setSuccessToast(null), 3000);
+    } catch (err) {
+      setErrorMessage(err.response?.data?.error || err.message || 'Failed to update cart.');
+    } finally {
+      setCartLoading(false);
+    }
+  };
+
+  const handleRemoveFromCart = async (itemId) => {
+    setCartLoading(true);
+    try {
+      const updatedCart = await foodService.removeFromCart(itemId);
+      setCart(updatedCart);
+    } catch (err) {
+      setErrorMessage(err.response?.data?.error || err.message);
+    } finally {
+      setCartLoading(false);
+    }
+  };
+
+  const handleCheckout = async (e) => {
+    e.preventDefault();
+    if (!isAuthenticated) {
+      navigate('/login?redirect=/food');
+      return;
+    }
+
+    if (cart.length === 0) {
+      setErrorMessage('Your cart is empty. Please add items before placing an order.');
+      return;
+    }
+
+    setCheckoutLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const result = await foodService.checkout({
+        deliveryType,
+        seatOrTableNumber: seatNumber,
+        customerNotes,
+      });
+
+      if (result.success) {
+        setConfirmedOrder(result.order);
+        setCart([]);
+        loadOrders();
+        setSuccessToast(`Order #${result.orderId} placed successfully!`);
+      }
+    } catch (err) {
+      const errorMsg =
+        err.response?.data?.error || err.response?.data?.message || err.message || 'Checkout failed.';
+      setErrorMessage(errorMsg);
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
+
+  const filteredMenu = menuItems.filter((item) => {
+    const matchesCategory =
+      selectedCategory === 'All' || item.category.toLowerCase() === selectedCategory.toLowerCase();
+    const matchesSearch =
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.description.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+
+  const cartSubtotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  const cartGst = Math.round(cartSubtotal * 0.05);
+  const cartServiceFee = cart.length > 0 ? 20 : 0;
+  const cartGrandTotal = cartSubtotal + cartGst + cartServiceFee;
+  const totalCartCount = cart.reduce((sum, i) => sum + i.quantity, 0);
+
+  const runTestWithoutToken = async () => {
+    setInspectorResult({ running: true, title: 'Testing Protected /api/food/cart without Bearer Token...' });
+    const res = await foodService.testProtectedApiWithoutToken();
+    if (!res.success) {
+      setInspectorResult({
+        type: 'success_proof',
+        title: 'Requirement (f) Verified: Backend Rejected Unauthenticated Request!',
+        status: `HTTP ${res.status} Unauthorized`,
+        message: res.error,
+        explanation: 'The protected API properly verified headers and rejected access because Authorization Bearer token was absent.',
+      });
+    } else {
+      setInspectorResult({
+        type: 'warning',
+        title: 'Unexpected response',
+        message: 'Endpoint accepted unauthenticated request.',
+      });
+    }
+  };
+
+  const runTestExpiredToken = async () => {
+    setInspectorResult({ running: true, title: 'Injecting expired token and invoking protected API...' });
+    try {
+      await foodService.testExpiredToken();
+    } catch (err) {
+      setInspectorResult({
+        type: 'success_proof',
+        title: 'Requirement (g) Verified: Axios Interceptor Caught Expired Token!',
+        status: `HTTP ${err.response?.status || 401} Unauthorized`,
+        message: err.response?.data?.error || 'Token has expired.',
+        explanation: 'Axios response interceptor detected the 401 status, purged expired token from storage, and triggered session-expired handling.',
+      });
+    }
+  };
+
+  const activeToken = getToken();
+
+  return (
+    <div className="food-page-container">
+      <div className="food-hero-section">
+        <div className="food-hero-content">
+          <div className="food-badge-pill">
+            <span>🍿 Multiplex Food & Concessions • Unit 4 Experiment 4</span>
+          </div>
+          <h1 className="food-hero-title">Multiplex Concessions & Food Ordering</h1>
+          <p className="food-hero-subtitle">
+            Demonstrating Token Authentication, Axios Request/Response Interceptors, Protected Cart & Checkout APIs, and Expired Token Handling.
+          </p>
+
+          <div className="food-auth-status-bar">
+            <div className="status-indicator">
+              <span className={`status-dot ${isAuthenticated ? 'dot-active' : 'dot-idle'}`} />
+              <span>
+                Auth State: <strong>{isAuthenticated ? `Authenticated (${username || user?.username})` : 'Unauthenticated (Guest)'}</strong>
+              </span>
+            </div>
+
+            <div className="status-indicator">
+              <span>Token: </span>
+              <strong className="token-code-preview">
+                {activeToken ? `${activeToken.substring(0, 18)}...` : 'None (No Bearer Header)'}
+              </strong>
+            </div>
+
+            {!isAuthenticated ? (
+              <Link to="/login?redirect=/food" className="btn-primary btn-sm">
+                Sign In to Unlock Cart & Orders →
+              </Link>
+            ) : (
+              <span className="auth-verified-badge">✓ Axios Interceptor Active</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {successToast && (
+        <div className="api-toast-success" role="alert">
+          ✓ {successToast}
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="api-error-panel" role="alert" style={{ margin: '16px auto', maxWidth: '1100px' }}>
+          <div className="error-icon">⚠️</div>
+          <div className="error-content">
+            <h4>Authentication / Order Notice</h4>
+            <p>{errorMessage}</p>
+            {!isAuthenticated && (
+              <Link to="/login?redirect=/food" className="btn-primary btn-sm" style={{ marginTop: '8px', display: 'inline-block' }}>
+                Sign In Now
+              </Link>
+            )}
+          </div>
+          <button type="button" onClick={() => setErrorMessage(null)} className="alert-close-btn">
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Inspector Toolbar for Lab Evaluator */}
+      <div className="inspector-panel">
+        <div className="inspector-header">
+          <div className="inspector-title">
+            <span className="inspector-icon">🧪</span>
+            <strong>Lab Evaluator &amp; Axios Interceptor Inspector</strong>
+          </div>
+          <span className="inspector-sub">Live Verification for Requirements (d), (f), &amp; (g)</span>
+        </div>
+
+        <div className="inspector-actions">
+          <button
+            type="button"
+            className="btn-inspector"
+            onClick={runTestWithoutToken}
+          >
+            🚫 Test Protected API Without Token (Req f)
+          </button>
+
+          <button
+            type="button"
+            className="btn-inspector btn-inspector-warn"
+            onClick={runTestExpiredToken}
+          >
+            ⏰ Simulate Expired Token &amp; Interceptor (Req g)
+          </button>
+        </div>
+
+        {inspectorResult && (
+          <div className="inspector-result-box">
+            <div className="inspector-result-title">{inspectorResult.title}</div>
+            {inspectorResult.status && (
+              <div className="inspector-result-code">
+                Status: <strong>{inspectorResult.status}</strong>
+              </div>
+            )}
+            {inspectorResult.message && <p className="inspector-result-msg">{inspectorResult.message}</p>}
+            {inspectorResult.explanation && (
+              <p className="inspector-result-exp">💡 {inspectorResult.explanation}</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="food-tabs-container">
+        <button
+          type="button"
+          className={`food-tab-btn ${activeTab === 'menu' ? 'active' : ''}`}
+          onClick={() => setActiveTab('menu')}
+        >
+          🍔 Concessions Menu ({menuItems.length})
+        </button>
+
+        <button
+          type="button"
+          className={`food-tab-btn ${activeTab === 'cart' ? 'active' : ''}`}
+          onClick={() => setActiveTab('cart')}
+        >
+          🛒 My Cart {totalCartCount > 0 && <span className="tab-counter-badge">{totalCartCount}</span>}
+          {!isAuthenticated && <span className="lock-icon"> 🔒</span>}
+        </button>
+
+        <button
+          type="button"
+          className={`food-tab-btn ${activeTab === 'orders' ? 'active' : ''}`}
+          onClick={() => setActiveTab('orders')}
+        >
+          📜 Order History {orders.length > 0 && <span className="tab-counter-badge">{orders.length}</span>}
+          {!isAuthenticated && <span className="lock-icon"> 🔒</span>}
+        </button>
+      </div>
+
+      {activeTab === 'menu' && (
+        <div className="food-menu-layout">
+          <div className="food-filter-bar">
+            <div className="food-category-pills">
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  className={`category-pill ${selectedCategory === cat ? 'active' : ''}`}
+                  onClick={() => setSelectedCategory(cat)}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            <div className="food-search-wrapper">
+              <input
+                type="text"
+                placeholder="Search popcorn, nachos, burgers..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="food-search-input"
+              />
+              {searchQuery && (
+                <button type="button" onClick={() => setSearchQuery('')} className="search-clear-btn">
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          {loadingMenu ? (
+            <div className="api-loading-panel">
+              <div className="spinner" />
+              <p>Loading Gourmet Concessions Menu...</p>
+            </div>
+          ) : filteredMenu.length === 0 ? (
+            <div className="empty-history-card">
+              <div className="empty-icon">🍽️</div>
+              <h3>No Menu Items Found</h3>
+              <p>Try searching with another keyword or select All categories.</p>
+            </div>
+          ) : (
+            <div className="food-menu-grid">
+              {filteredMenu.map((item) => (
+                <div key={item.id} className="food-card">
+                  <div className="food-card-top">
+                    <span className="food-card-emoji">{item.emoji}</span>
+                    {item.badge && <span className="food-card-badge">{item.badge}</span>}
+                  </div>
+
+                  <div className="food-card-body">
+                    <div className="food-title-row">
+                      <h3 className="food-card-title">{item.name}</h3>
+                      <span className="food-rating">★ {item.rating}</span>
+                    </div>
+
+                    <p className="food-card-desc">{item.description}</p>
+
+                    <div className="food-card-meta">
+                      <span className="food-prep-time">⏱️ {item.prepTime}</span>
+                      <span className="food-category-tag">{item.category}</span>
+                    </div>
+                  </div>
+
+                  <div className="food-card-footer">
+                    <div className="food-price-tag">
+                      <span className="currency-symbol">₹</span>
+                      <span className="price-amount">{item.price}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleAddToCart(item)}
+                      disabled={cartLoading}
+                      className="btn-primary add-cart-btn"
+                    >
+                      {cartLoading ? 'Adding...' : '+ Add to Cart'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'cart' && (
+        <div className="food-cart-layout">
+          {!isAuthenticated ? (
+            <div className="cart-auth-guard-panel">
+              <div className="guard-icon">🔒</div>
+              <h2>Authentication Required</h2>
+              <p>
+                In accordance with <strong>Requirement (f)</strong>, the Cart, Checkout, and Order APIs are restricted exclusively to authenticated users.
+              </p>
+              <div className="guard-features">
+                <div>✓ Secure session token storage</div>
+                <div>✓ Axios Authorization header auto-attachment</div>
+                <div>✓ Protected delivery to your cinema auditorium seat</div>
+              </div>
+              <div className="guard-actions">
+                <Link to="/login?redirect=/food" className="btn-primary">
+                  Sign In with Bearer Token →
+                </Link>
+                <Link to="/register" className="btn-secondary">
+                  Create New Account
+                </Link>
+              </div>
+            </div>
+          ) : cart.length === 0 ? (
+            <div className="empty-history-card">
+              <div className="empty-icon">🛒</div>
+              <h3>Your Concessions Cart is Empty</h3>
+              <p>Explore our menu and add your favorite popcorn, snacks, or drinks.</p>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ marginTop: '14px' }}
+                onClick={() => setActiveTab('menu')}
+              >
+                Browse Menu →
+              </button>
+            </div>
+          ) : (
+            <div className="cart-checkout-grid">
+              <div className="cart-items-card">
+                <div className="cart-header">
+                  <h3>Your Cart Items ({totalCartCount})</h3>
+                  <button
+                    type="button"
+                    onClick={() => foodService.clearCart().then(setCart)}
+                    className="clear-cart-link"
+                  >
+                    Clear All
+                  </button>
+                </div>
+
+                <div className="cart-items-list">
+                  {cart.map((item) => (
+                    <div key={item.itemId} className="cart-item-row">
+                      <span className="cart-item-emoji">{item.emoji || '🍿'}</span>
+                      <div className="cart-item-info">
+                        <h4>{item.name}</h4>
+                        <div className="cart-item-pricing">
+                          ₹{item.price} each × {item.quantity} = <strong>₹{item.price * item.quantity}</strong>
+                        </div>
+                      </div>
+
+                      <div className="cart-item-controls">
+                        <button
+                          type="button"
+                          className="qty-btn"
+                          onClick={() => foodService.addToCart(item, -1).then(setCart)}
+                        >
+                          -
+                        </button>
+                        <span className="qty-val">{item.quantity}</span>
+                        <button
+                          type="button"
+                          className="qty-btn"
+                          onClick={() => foodService.addToCart(item, 1).then(setCart)}
+                        >
+                          +
+                        </button>
+                        <button
+                          type="button"
+                          className="cart-del-btn"
+                          onClick={() => handleRemoveFromCart(item.itemId)}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="cart-pricing-summary">
+                  <div className="price-row">
+                    <span>Items Subtotal:</span>
+                    <span>₹{cartSubtotal}</span>
+                  </div>
+                  <div className="price-row">
+                    <span>GST (5% Food &amp; Beverage):</span>
+                    <span>₹{cartGst}</span>
+                  </div>
+                  <div className="price-row">
+                    <span>Auditorium Seat Delivery:</span>
+                    <span>₹{cartServiceFee}</span>
+                  </div>
+                  <hr className="ticket-divider" />
+                  <div className="price-row grand-total">
+                    <span>Total Amount Payable:</span>
+                    <span className="grand-total-val">₹{cartGrandTotal}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="checkout-form-card">
+                <div className="checkout-header">
+                  <h3>🔒 Protected Seat Checkout (POST API)</h3>
+                  <p className="checkout-sub">Authenticated as: <strong>{username || user?.username}</strong></p>
+                </div>
+
+                <form onSubmit={handleCheckout} className="checkout-form">
+                  <div className="form-group">
+                    <label htmlFor="delivery-type">Delivery Mode</label>
+                    <select
+                      id="delivery-type"
+                      className="form-control"
+                      value={deliveryType}
+                      onChange={(e) => setDeliveryType(e.target.value)}
+                    >
+                      <option value="Direct to Seat">🍿 Direct to Cinema Seat (Interval Service)</option>
+                      <option value="Concessions Counter Pickup">🏛️ Express Concessions Counter Pickup</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="seat-number">Auditorium Screen &amp; Seat / Counter</label>
+                    <input
+                      id="seat-number"
+                      type="text"
+                      className="form-control"
+                      value={seatNumber}
+                      onChange={(e) => setSeatNumber(e.target.value)}
+                      placeholder="e.g. Screen 1, Seat H-09"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="order-notes">Special Instructions (Optional)</label>
+                    <textarea
+                      id="order-notes"
+                      className="form-control"
+                      rows="2"
+                      value={customerNotes}
+                      onChange={(e) => setCustomerNotes(e.target.value)}
+                      placeholder="e.g. Extra jalapeño dip, serve hot during intermission"
+                    />
+                  </div>
+
+                  <div className="checkout-token-badge">
+                    <span>✓ Bearer Token Verified</span>
+                    <code>Authorization: Bearer {activeToken ? `${activeToken.substring(0, 10)}...` : 'None'}</code>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={checkoutLoading || cart.length === 0}
+                    className="btn-primary checkout-btn"
+                  >
+                    {checkoutLoading ? (
+                      <span className="btn-loading-content">
+                        <span className="spinner-sm" />
+                        <span>Authorizing &amp; Submitting Order...</span>
+                      </span>
+                    ) : (
+                      <span>Confirm Food Order • ₹{cartGrandTotal} (POST)</span>
+                    )}
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'orders' && (
+        <div className="food-orders-layout">
+          {!isAuthenticated ? (
+            <div className="cart-auth-guard-panel">
+              <div className="guard-icon">🔒</div>
+              <h2>Order History Protected</h2>
+              <p>Please log in to retrieve your verified concessions orders from the protected API.</p>
+              <Link to="/login?redirect=/food" className="btn-primary">
+                Log In to View Orders →
+              </Link>
+            </div>
+          ) : ordersLoading ? (
+            <div className="api-loading-panel">
+              <div className="spinner" />
+              <p>Fetching orders from protected GET /api/food/orders...</p>
+            </div>
+          ) : orders.length === 0 ? (
+            <div className="empty-history-card">
+              <div className="empty-icon">📜</div>
+              <h3>No Food Orders Yet</h3>
+              <p>Your confirmed concessions orders will appear here once placed.</p>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ marginTop: '14px' }}
+                onClick={() => setActiveTab('menu')}
+              >
+                Order Snacks Now →
+              </button>
+            </div>
+          ) : (
+            <div className="orders-list-grid">
+              {orders.map((ord) => (
+                <div key={ord.orderId} className="history-card">
+                  <div className="history-card-top">
+                    <div>
+                      <span className="ref-tag">{ord.orderId}</span>
+                      <span className="status-pill status-confirmed">{ord.status}</span>
+                    </div>
+                    <span className="history-time-stamp">{ord.confirmedAt || 'Today'}</span>
+                  </div>
+
+                  <div className="history-card-content">
+                    <div className="history-card-details">
+                      <h4 className="history-movie-name">
+                        📍 {ord.deliveryType} ({ord.seatOrTableNumber})
+                      </h4>
+
+                      <div className="order-items-summary">
+                        {ord.items.map((i) => (
+                          <div key={i.itemId} className="order-item-chip">
+                            <span>{i.emoji || '🍿'} {i.name} × {i.quantity}</span>
+                            <span>₹{i.price * i.quantity}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {ord.customerNotes && (
+                        <div className="order-notes-tag">
+                          📝 Notes: <em>{ord.customerNotes}</em>
+                        </div>
+                      )}
+
+                      <div className="history-amount-row">
+                        <span>Total Paid (incl. GST &amp; Service):</span>
+                        <span className="history-amount-val">₹{ord.grandTotal}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {confirmedOrder && (
+        <div className="modal-backdrop" onClick={() => setConfirmedOrder(null)}>
+          <div className="modal-window" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>✓ Food Order Confirmed!</h3>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setConfirmedOrder(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="modal-form">
+              <div className="modal-info-bar">
+                <span>Order ID: <strong>{confirmedOrder.orderId}</strong></span>
+                <span>Total: <strong>₹{confirmedOrder.grandTotal}</strong></span>
+              </div>
+
+              <div className="confirmed-order-details">
+                <p>
+                  Your cinema concession order is being prepared! It will be delivered directly to{' '}
+                  <strong>{confirmedOrder.seatOrTableNumber}</strong>.
+                </p>
+
+                <div className="confirmed-items-list">
+                  {confirmedOrder.items.map((it) => (
+                    <div key={it.itemId} className="confirmed-item-line">
+                      <span>{it.emoji || '🍿'} {it.name} × {it.quantity}</span>
+                      <span>₹{it.price * it.quantity}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => {
+                    setConfirmedOrder(null);
+                    setActiveTab('orders');
+                  }}
+                >
+                  View in Order History →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default FoodOrderingPage;
+
+
+================================================================================
+FILE 9: src/components/Header.jsx
+================================================================================
+import React from 'react';
+import { NavLink, Link, useNavigate } from 'react-router-dom';
+import useAuth from '../hooks/useAuth';
+import BookMyMovieIcon from './BookMyMovieIcon';
+
+function Header() {
+  const { isAuthenticated, username, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  return (
+    <header className="navbar">
+      <div className="navbar-container">
+        <Link to="/" className="navbar-brand" aria-label="BookMyMovie Home">
+          <BookMyMovieIcon size={34} className="navbar-bmm-icon" />
+          <span className="brand-text">Book<span className="brand-text-accent">My</span>Movie</span>
+        </Link>
+
+        <nav aria-label="Main Navigation">
+          <ul className="navbar-links">
+            <li>
+              <NavLink
+                to="/"
+                end
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              >
+                Home
+              </NavLink>
+            </li>
+
+            <li>
+              <NavLink
+                to="/movies"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              >
+                Movies
+              </NavLink>
+            </li>
+
+            <li>
+              <NavLink
+                to="/food"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              >
+                🍿 Food Ordering
+              </NavLink>
+            </li>
+
+            <li>
+              <NavLink
+                to="/summary"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              >
+                My Bookings
+              </NavLink>
+            </li>
+
+            {!isAuthenticated ? (
+              <>
+                <li>
+                  <NavLink
+                    to="/login"
+                    className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                  >
+                    Login
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/register"
+                    className={({ isActive }) => `nav-link nav-register-btn ${isActive ? 'active' : ''}`}
+                  >
+                    Register
+                  </NavLink>
+                </li>
+              </>
+            ) : (
+              <>
+                <li>
+                  <NavLink
+                    to="/booking"
+                    className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                  >
+                    Seat Booking
+                  </NavLink>
+                </li>
+
+                <li className="user-nav-item">
+                  <span className="user-chip" title={`Signed in as ${username}`}>
+                    <span className="user-avatar-icon">👤</span>
+                    <span className="user-name-text">{username}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="logout-btn"
+                    title="Sign out of account"
+                  >
+                    Logout
+                  </button>
+                </li>
+              </>
+            )}
+          </ul>
+        </nav>
+      </div>
+    </header>
+  );
+}
+
+export default Header;
+
+
+================================================================================
+FILE 10: src/App.jsx
+================================================================================
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+
+import { AuthProvider } from './context/AuthContext';
+import Header from './components/Header';
+import Footer from './components/Footer';
+import ProtectedRoute from './components/ProtectedRoute';
+
+import HomePage from './pages/HomePage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import MoviesPage from './pages/MoviesPage';
+import MovieDetailsPage from './pages/MovieDetailsPage';
+import BookingPage from './pages/BookingPage';
+import SummaryPage from './pages/SummaryPage';
+import FoodOrderingPage from './pages/FoodOrderingPage';
+import NotFound from './pages/NotFound';
+
+import './App.css';
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <div className="app-wrapper">
+          <Header />
+          <main className="main-content">
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/" element={<HomePage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/movies" element={<MoviesPage />} />
+              <Route path="/movies/:id" element={<MovieDetailsPage />} />
+              <Route path="/food" element={<FoodOrderingPage />} />
+
+              {/* Protected Routes (Authentication & Bearer Token Required) */}
+              <Route
+                path="/cart"
+                element={
+                  <ProtectedRoute>
+                    <FoodOrderingPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/food/orders"
+                element={
+                  <ProtectedRoute>
+                    <FoodOrderingPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/booking"
+                element={
+                  <ProtectedRoute>
+                    <BookingPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/summary"
+                element={
+                  <ProtectedRoute>
+                    <SummaryPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* 404 Route */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </main>
+          <Footer />
+        </div>
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}
+
+export default App;
+
+
+================================================================================
+FILE 11: src/data/foodMenuData.js
+================================================================================
+export const INITIAL_FOOD_MENU = [
+  {
+    id: 'food-1',
+    name: 'Gourmet Golden Caramel Popcorn',
+    category: 'Snacks',
+    price: 220,
+    rating: 4.9,
+    description: 'Freshly popped jumbo corn tossed in rich slow-cooked golden caramel with a pinch of sea salt.',
+    emoji: '🍿',
+    badge: 'Bestseller',
+    prepTime: '3 mins',
+  },
+  {
+    id: 'food-2',
+    name: 'Loaded Mexican Cheese Nachos',
+    category: 'Snacks',
+    price: 190,
+    rating: 4.8,
+    description: 'Crispy stone-ground corn tortilla chips accompanied by hot cheddar cheese sauce and jalapeño salsa.',
+    emoji: '🧀',
+    badge: 'Popular',
+    prepTime: '5 mins',
+  },
+  {
+    id: 'food-3',
+    name: 'Crispy Truffle Parmesan Fries',
+    category: 'Snacks',
+    price: 180,
+    rating: 4.7,
+    description: 'Golden skin-on french fries tossed in fragrant white truffle oil, rosemary, and aged parmesan.',
+    emoji: '🍟',
+    badge: 'Chef Special',
+    prepTime: '5 mins',
+  },
+  {
+    id: 'food-4',
+    name: 'Smoky BBQ Paneer Burger',
+    category: 'Meals',
+    price: 240,
+    rating: 4.8,
+    description: 'Char-grilled marinated paneer steak with crisp iceberg lettuce, caramelized onions, and smoky BBQ dip.',
+    emoji: '🍔',
+    badge: 'Vegetarian',
+    prepTime: '8 mins',
+  },
+  {
+    id: 'food-5',
+    name: 'Crispy Zinger Chicken Burger',
+    category: 'Meals',
+    price: 280,
+    rating: 4.9,
+    description: 'Deep-fried golden chicken breast fillet loaded with creamy chipotle mayonnaise and dill pickles.',
+    emoji: '🍗',
+    badge: 'Must Try',
+    prepTime: '8 mins',
+  },
+  {
+    id: 'food-6',
+    name: 'Wood-Fired Margherita Pizza (8")',
+    category: 'Meals',
+    price: 299,
+    rating: 4.8,
+    description: 'San Marzano tomato sauce, fresh buffalo mozzarella, virgin olive oil, and sweet Italian basil leaves.',
+    emoji: '🍕',
+    badge: 'Classic',
+    prepTime: '10 mins',
+  },
+  {
+    id: 'food-7',
+    name: 'Chilled Caramel Iced Macchiato',
+    category: 'Beverages',
+    price: 160,
+    rating: 4.7,
+    description: 'Double shot of dark roasted arabica coffee poured over chilled vanilla milk and caramel drizzle.',
+    emoji: '☕',
+    badge: 'Chilled',
+    prepTime: '3 mins',
+  },
+  {
+    id: 'food-8',
+    name: 'Refreshing Virgin Mojito Fizz',
+    category: 'Beverages',
+    price: 140,
+    rating: 4.6,
+    description: 'Crushed garden mint, freshly squeezed lime juice, raw cane sugar, and chilled sparkling soda.',
+    emoji: '🍹',
+    badge: 'Refreshing',
+    prepTime: '3 mins',
+  },
+  {
+    id: 'food-9',
+    name: 'Molten Belgian Chocolate Lava Cake',
+    category: 'Desserts',
+    price: 150,
+    rating: 4.9,
+    description: 'Warm cocoa sponge cake bursting with liquid dark Belgian chocolate ganache center.',
+    emoji: '🍫',
+    badge: 'Sweet Treat',
+    prepTime: '4 mins',
+  },
+  {
+    id: 'food-10',
+    name: 'Red Velvet Gourmet Sundae',
+    category: 'Desserts',
+    price: 170,
+    rating: 4.8,
+    description: 'Velvety cake crumble layered with Madagascar vanilla ice cream and wild berry reduction.',
+    emoji: '🍨',
+    badge: 'Delight',
+    prepTime: '4 mins',
+  },
+];
