@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
+import { sanitizeInput } from '../utils/security';
 
 /**
  * Reusable Login Component for Unit 4 - Experiment 4
@@ -35,7 +36,8 @@ function Login({ onSuccess, redirectTo }) {
     setValidationError('');
     clearError();
 
-    const trimmedId = identifier.trim();
+    // Security: sanitize identifier against script injection
+    const trimmedId = sanitizeInput(identifier);
     const trimmedPass = password.trim();
 
     // Client-side form validation
@@ -176,6 +178,7 @@ function Login({ onSuccess, redirectTo }) {
                 if (validationError) setValidationError('');
               }}
               disabled={loading}
+              maxLength={60}
               autoComplete="username"
             />
           </div>
@@ -194,6 +197,7 @@ function Login({ onSuccess, redirectTo }) {
                   if (validationError) setValidationError('');
                 }}
                 disabled={loading}
+                maxLength={40}
                 autoComplete="current-password"
               />
               <button

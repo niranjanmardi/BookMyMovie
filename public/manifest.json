@@ -1,0 +1,45 @@
+{
+  "name": "BookMyMovie – Cinema Ticket & Seat Booking",
+  "short_name": "BookMyMovie",
+  "description": "Progressive Web App for booking 2026 cinema tickets, choosing theatres and reserving seats with offline support.",
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0f19",
+  "theme_color": "#e50914",
+  "categories": ["entertainment", "movies", "tickets"],
+  "icons": [
+    {
+      "src": "/bookmymovie-icon.svg",
+      "sizes": "64x64 128x128 192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "48x48 64x64",
+      "type": "image/svg+xml"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Browse Movies",
+      "short_name": "Movies",
+      "url": "/movies",
+      "description": "Browse 2026 Tamil and Hollywood cinema catalog"
+    },
+    {
+      "name": "Seat Selection",
+      "short_name": "Seats",
+      "url": "/booking",
+      "description": "Pick your seats and book tickets"
+    },
+    {
+      "name": "My Bookings",
+      "short_name": "Bookings",
+      "url": "/summary",
+      "description": "View verified admission tickets and digital passes"
+    }
+  ]
+}

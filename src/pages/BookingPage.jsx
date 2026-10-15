@@ -1,9 +1,14 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useBooking from '../hooks/useBooking';
 import TheatreList from '../components/TheatreList';
 import ShowTiming from '../components/ShowTiming';
-import SeatSelection from '../components/SeatSelection';
+
+// ==============================================================================
+// Experiment 2: Lazy Loading for Seat Selection Page / Component (Requirement a)
+// Code-splits the heavy 110-seat interactive auditorium layout
+// ==============================================================================
+const SeatSelection = lazy(() => import('../components/SeatSelection'));
 
 function BookingPage() {
   const navigate = useNavigate();
@@ -166,7 +171,18 @@ function BookingPage() {
               <span>💺</span>
               <span>4. Reserve Your Seats (110 Seats Screen Layout)</span>
             </div>
-            <SeatSelection />
+            <Suspense
+              fallback={
+                <div className="seat-lazy-loading" role="status" aria-label="Loading interactive seat layout">
+                  <div className="loading-spinner"></div>
+                  <p style={{ marginTop: '12px', color: '#94a3b8' }}>
+                    ⚡ Lazy loading interactive 110-seat auditorium...
+                  </p>
+                </div>
+              }
+            >
+              <SeatSelection />
+            </Suspense>
           </div>
 
           {/* ── 5. Real-Time Price Details & Checkout ── */}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
+import { sanitizeInput } from '../utils/security';
 
 function RegisterPage() {
   const [usernameInput,  setUsernameInput]  = useState('');
@@ -26,7 +27,9 @@ function RegisterPage() {
     setErrorMessage('');
     setSuccessMessage('');
 
-    const result = register(usernameInput, passwordInput, confirmInput);
+    // Security: sanitize username input
+    const cleanUsername = sanitizeInput(usernameInput);
+    const result = register(cleanUsername, passwordInput, confirmInput);
 
     if (result.success) {
       setSuccessMessage(

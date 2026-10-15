@@ -1,0 +1,278 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Experiment 1 - Movie Booking Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+      background: #fff;
+      color: #000;
+      font-size: 14px;
+    }
+
+    h1 { font-size: 20px; text-align: center; margin-bottom: 4px; }
+    h2 { font-size: 16px; margin-top: 24px; margin-bottom: 8px; border-bottom: 1px solid #000; padding-bottom: 4px; }
+    h3 { font-size: 14px; margin: 12px 0 6px 0; }
+
+    .center { text-align: center; }
+    .info-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+    .info-table td { padding: 5px 10px; border: 1px solid #999; }
+    .info-table td:first-child { font-weight: bold; width: 160px; background: #f0f0f0; }
+
+    table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+    table th { background: #333; color: #fff; padding: 6px 10px; text-align: left; font-size: 13px; }
+    table td { padding: 5px 10px; border: 1px solid #ccc; font-size: 13px; }
+    table tr:nth-child(even) { background: #f9f9f9; }
+
+    .pass { color: green; font-weight: bold; }
+    .result-box { background: #e8f5e9; border: 1px solid #4caf50; padding: 12px 16px; margin: 16px 0; }
+    .result-box p { margin: 4px 0; }
+
+    ul { margin: 4px 0 8px 20px; }
+    ul li { margin-bottom: 3px; }
+
+    .terminal {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      font-family: Consolas, monospace;
+      font-size: 12px;
+      padding: 16px;
+      border-radius: 6px;
+      white-space: pre;
+      overflow-x: auto;
+      line-height: 1.6;
+      margin: 10px 0 20px 0;
+    }
+    .green { color: #4ec94e; }
+    .cyan  { color: #9cdcfe; }
+    .gray  { color: #858585; }
+    .purple{ color: #c586c0; }
+    .orange{ color: #ce9178; }
+
+    .screenshot-box {
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: center;
+      margin: 10px 0 20px 0;
+    }
+    .screenshot-box img { max-width: 480px; width: 100%; }
+    .screenshot-box p { font-size: 12px; color: #555; margin-top: 6px; }
+
+    .footer { text-align: center; margin-top: 40px; font-size: 12px; color: #555; border-top: 1px solid #ccc; padding-top: 10px; }
+  </style>
+</head>
+<body>
+
+<h1>Experiment 1 - Movie Ticket Booking Web Application</h1>
+<p class="center">Component Testing using Jest and React Testing Library</p>
+
+<h2>1. Experiment Details</h2>
+<table class="info-table">
+  <tr><td>Project Name</td><td>BookMyMovie</td></tr>
+  <tr><td>Subject</td><td>Full Stack Web Development Lab</td></tr>
+  <tr><td>Technology</td><td>React + Redux Toolkit + Vite</td></tr>
+  <tr><td>Testing Tool</td><td>Jest and React Testing Library</td></tr>
+  <tr><td>Date</td><td>15 October 2026</td></tr>
+</table>
+
+<h2>2. Aim</h2>
+<p>To write and execute test cases for the BookMyMovie React application covering movie cards, movie details, seat selection, search and filtering, ticket price calculation, and booking confirmation.</p>
+
+<h2>3. Test Cases Written</h2>
+
+<h3>a) Movie Card Component</h3>
+<ul>
+  <li>Check if movie title, rating, and category are shown correctly</li>
+  <li>Check if poster image has correct alt text</li>
+  <li>Check if selected state shows the "Selected for Booking" badge</li>
+  <li>Check if clicking "Book Tickets" calls the onSelect function</li>
+  <li>Check keyboard accessibility (Enter and Space keys)</li>
+  <li>Check if null movie returns nothing (no crash)</li>
+</ul>
+
+<h3>b) Movie Search and Filtering</h3>
+<ul>
+  <li>Check if search input shows the current query value</li>
+  <li>Check if typing triggers the onSearchChange callback</li>
+  <li>Check if the clear button appears and resets the search</li>
+  <li>Check if category filter (Tamil / Hollywood) works correctly</li>
+  <li>Check if genre filter shows the right movies</li>
+  <li>Check combined search + category filtering</li>
+</ul>
+
+<h3>c) Seat Selection and Removal</h3>
+<ul>
+  <li>Check if clicking a seat adds it to selected list</li>
+  <li>Check if clicking the same seat again removes it (toggle)</li>
+  <li>Check if clicking the X button removes a seat from chips</li>
+  <li>Check if 110 seats are rendered (rows A to J)</li>
+  <li>Check that already booked seats are disabled</li>
+</ul>
+
+<h3>d) Ticket Price Calculation</h3>
+<ul>
+  <li>Check seat category mapping: A-E = Regular (Rs.150), F-H = Premium (Rs.200), I-J = Recliner (Rs.300)</li>
+  <li>Check total price for empty seat list = 0</li>
+  <li>Check total for 1 Regular seat = Rs.150</li>
+  <li>Check total for 2 Premium seats = Rs.400</li>
+  <li>Check total for mixed seat types</li>
+  <li>Check that price updates when seats are added or removed</li>
+</ul>
+
+<h3>e) Booking Confirmation</h3>
+<ul>
+  <li>Check that booking fails if movie, theatre, or seats are missing</li>
+  <li>Check that a booking ID is created in BMM-CBE-XXXXXX format</li>
+  <li>Check that booking is saved to localStorage</li>
+  <li>Check that same seat cannot be booked twice</li>
+  <li>Check that Redux state shows bookingConfirmed = true after confirm</li>
+  <li>Check that clearBooking resets all state to default</li>
+</ul>
+
+<h3>f) Booking Components (Admission Pass)</h3>
+<ul>
+  <li>Check that admission pass shows movie name, theatre, date, time, and seats</li>
+  <li>Check that Confirm button is disabled when details are incomplete</li>
+  <li>Check that booking reference code appears after confirming</li>
+  <li>Check that "Book Another Movie" resets the booking</li>
+</ul>
+
+<h2>4. Test Suites Summary</h2>
+<table>
+  <tr>
+    <th>#</th>
+    <th>Test File</th>
+    <th>Number of Tests</th>
+    <th>Result</th>
+  </tr>
+  <tr><td>1</td><td>MovieCard.test.jsx</td><td>6</td><td class="pass">PASS</td></tr>
+  <tr><td>2</td><td>MovieDetails.test.jsx</td><td>4</td><td class="pass">PASS</td></tr>
+  <tr><td>3</td><td>MovieSearchAndFilter.test.jsx</td><td>12</td><td class="pass">PASS</td></tr>
+  <tr><td>4</td><td>SeatSelection.test.jsx</td><td>4</td><td class="pass">PASS</td></tr>
+  <tr><td>5</td><td>SeatSelectionAndRemoval.test.jsx</td><td>6</td><td class="pass">PASS</td></tr>
+  <tr><td>6</td><td>TicketPriceCalculation.test.jsx</td><td>8</td><td class="pass">PASS</td></tr>
+  <tr><td>7</td><td>BookingComponents.test.jsx</td><td>4</td><td class="pass">PASS</td></tr>
+  <tr><td>8</td><td>BookingConfirmation.test.jsx</td><td>7</td><td class="pass">PASS</td></tr>
+  <tr><td colspan="2"><strong>Total</strong></td><td><strong>51</strong></td><td class="pass"><strong>All Passed</strong></td></tr>
+</table>
+
+<h2>5. Terminal Output (npm test)</h2>
+<div class="terminal"><span class="cyan">&gt; bookmymovie@0.0.0 test</span>
+<span class="cyan">&gt; jest --config jest.config.cjs --verbose</span>
+
+<span class="green">PASS</span> src/__tests__/TicketPriceCalculation.test.jsx
+  Experiment 1: Ticket-Price Calculation
+    <span class="gray">Auditorium Tier Classification</span>
+      <span class="green">&#10003;</span> correctly maps seat IDs to their corresponding categories <span class="gray">(22 ms)</span>
+      <span class="green">&#10003;</span> returns the defined ticket prices for each category <span class="gray">(5 ms)</span>
+    <span class="gray">calculateSeatsPriceBreakdown Engine</span>
+      <span class="green">&#10003;</span> returns zero totals for empty seat list <span class="gray">(5 ms)</span>
+      <span class="green">&#10003;</span> calculates single and multiple Regular seats Rs.150 each <span class="gray">(4 ms)</span>
+      <span class="green">&#10003;</span> calculates Premium seats Rs.200 each <span class="gray">(2 ms)</span>
+      <span class="green">&#10003;</span> calculates Recliner luxury seats Rs.300 each <span class="gray">(5 ms)</span>
+      <span class="green">&#10003;</span> calculates multi-tier combination orders accurately <span class="gray">(3 ms)</span>
+    <span class="gray">Dynamic Price Recalculation via Redux</span>
+      <span class="green">&#10003;</span> dynamically recalculates total as seats are added and removed <span class="gray">(19 ms)</span>
+
+<span class="green">PASS</span> src/__tests__/BookingConfirmation.test.jsx
+  Experiment 1: Booking Confirmation and Persistence
+      <span class="green">&#10003;</span> throws an error if required booking parameters are missing <span class="gray">(58 ms)</span>
+      <span class="green">&#10003;</span> creates a verified booking record with BMM-CBE- reference format <span class="gray">(7 ms)</span>
+      <span class="green">&#10003;</span> persists booking in localStorage and retrieves from history <span class="gray">(4 ms)</span>
+      <span class="green">&#10003;</span> prevents double-booking the same seats for the same show <span class="gray">(5 ms)</span>
+      <span class="green">&#10003;</span> updates state to confirmed with booking reference <span class="gray">(4 ms)</span>
+      <span class="green">&#10003;</span> sets bookingError on failure <span class="gray">(1 ms)</span>
+      <span class="green">&#10003;</span> clears all booking state on clearBooking <span class="gray">(4 ms)</span>
+
+<span class="green">PASS</span> src/__tests__/MovieSearchAndFilter.test.jsx <span class="gray">(5.382 s)</span>
+  Experiment 1: Movie Search and Filtering
+      <span class="green">&#10003;</span> renders input with placeholder and reflects provided query <span class="gray">(173 ms)</span>
+      <span class="green">&#10003;</span> triggers onSearchChange when user types in the search bar <span class="gray">(374 ms)</span>
+      <span class="green">&#10003;</span> displays clear button when query is not empty and resets on click <span class="gray">(111 ms)</span>
+      <span class="green">&#10003;</span> renders category options with correct active state <span class="gray">(121 ms)</span>
+      <span class="green">&#10003;</span> calls onSelectCategory when clicking category pills <span class="gray">(63 ms)</span>
+      <span class="green">&#10003;</span> renders genre pills and calls onSelectGenre on click <span class="gray">(135 ms)</span>
+      <span class="green">&#10003;</span> returns all movies when search query and filters are blank <span class="gray">(3 ms)</span>
+      <span class="green">&#10003;</span> filters movie catalog by title search query case-insensitively <span class="gray">(7 ms)</span>
+      <span class="green">&#10003;</span> filters movie catalog by Tamil category <span class="gray">(4 ms)</span>
+      <span class="green">&#10003;</span> filters movie catalog by Hollywood category <span class="gray">(3 ms)</span>
+      <span class="green">&#10003;</span> filters movie catalog by genre accurately <span class="gray">(5 ms)</span>
+      <span class="green">&#10003;</span> applies combined search query and category filtering <span class="gray">(5 ms)</span>
+
+<span class="green">PASS</span> src/__tests__/MovieCard.test.jsx <span class="gray">(8.511 s)</span>
+  Experiment 1: MovieCard Component
+      <span class="green">&#10003;</span> renders movie title, rating badge, category badge accurately <span class="gray">(354 ms)</span>
+      <span class="green">&#10003;</span> renders poster image with proper alt text <span class="gray">(25 ms)</span>
+      <span class="green">&#10003;</span> shows selected overlay badge when isSelected is true <span class="gray">(110 ms)</span>
+      <span class="green">&#10003;</span> calls onSelect handler when Book Tickets is clicked <span class="gray">(57 ms)</span>
+      <span class="green">&#10003;</span> handles keyboard accessibility with Enter and Space keys <span class="gray">(60 ms)</span>
+      <span class="green">&#10003;</span> returns null gracefully when movie is undefined <span class="gray">(6 ms)</span>
+
+<span class="green">PASS</span> src/__tests__/BookingComponents.test.jsx <span class="gray">(8.733 s)</span>
+  Experiment 1: Booking Components and Admission Pass
+      <span class="green">&#10003;</span> renders admission pass with movie, theatre, date, time, and seats <span class="gray">(232 ms)</span>
+      <span class="green">&#10003;</span> disables confirm button when booking details are missing <span class="gray">(232 ms)</span>
+      <span class="green">&#10003;</span> successfully confirms booking and displays reference code <span class="gray">(334 ms)</span>
+      <span class="green">&#10003;</span> resets booking when Book Another Movie is clicked <span class="gray">(76 ms)</span>
+
+<span class="green">PASS</span> src/__tests__/MovieDetails.test.jsx <span class="gray">(8.785 s)</span>
+  Experiment 1: MovieDetails Component
+      <span class="green">&#10003;</span> renders loading state while fetching movie details <span class="gray">(320 ms)</span>
+      <span class="green">&#10003;</span> renders movie details correctly after successful fetch <span class="gray">(268 ms)</span>
+      <span class="green">&#10003;</span> dispatches handleSelectMovie when Book Tickets Now is clicked <span class="gray">(167 ms)</span>
+      <span class="green">&#10003;</span> renders error message when movie fetching fails <span class="gray">(65 ms)</span>
+
+<span class="green">PASS</span> src/__tests__/SeatSelectionAndRemoval.test.jsx <span class="gray">(9.15 s)</span>
+  Experiment 1: Seat Selection and Removal
+      <span class="green">&#10003;</span> toggleSeat adds a new seat when not already selected <span class="gray">(28 ms)</span>
+      <span class="green">&#10003;</span> toggleSeat removes the seat when already selected <span class="gray">(3 ms)</span>
+      <span class="green">&#10003;</span> removeSeat filters out specified seat and recalculates totals <span class="gray">(3 ms)</span>
+      <span class="green">&#10003;</span> allows user to select multiple seats and toggle them off <span class="gray">(1057 ms)</span>
+      <span class="green">&#10003;</span> removes seat when clicking the remove button on seat chip <span class="gray">(112 ms)</span>
+      <span class="green">&#10003;</span> prevents selecting already booked seats <span class="gray">(317 ms)</span>
+
+<span class="green">PASS</span> src/__tests__/SeatSelection.test.jsx <span class="gray">(9.387 s)</span>
+  Experiment 1: SeatSelection Component
+      <span class="green">&#10003;</span> displays instructions when screening info is incomplete <span class="gray">(321 ms)</span>
+      <span class="green">&#10003;</span> renders 110 seats across rows A to J <span class="gray">(1094 ms)</span>
+      <span class="green">&#10003;</span> displays selected seats in summary chips and calculates subtotal <span class="gray">(137 ms)</span>
+      <span class="green">&#10003;</span> dispatches toggleSeat action when an available seat is clicked <span class="gray">(198 ms)</span>
+
+<span class="orange">Test Suites: </span><span class="green">8 passed</span>, 8 total
+<span class="orange">Tests:       </span><span class="green">51 passed</span>, 51 total
+<span class="orange">Snapshots:   </span>0 total
+<span class="orange">Time:        </span>14.28 s
+<span class="green">Ran all test suites.</span></div>
+
+<h2>6. Output Screenshot</h2>
+<div class="screenshot-box">
+  <img src="C:/Users/mardi/.gemini/antigravity-ide/brain/0e520f93-5e26-4d45-9a2b-77cab87f2474/jest_test_output_1792063306813.jpg" alt="Jest Test Output Screenshot" />
+  <p>Screenshot: npm test output - All 51 tests passed</p>
+</div>
+
+<h2>7. Result</h2>
+<div class="result-box">
+  <p><strong>Total Test Suites :</strong> 8</p>
+  <p><strong>Total Tests Run  :</strong> 51</p>
+  <p><strong>Tests Passed     :</strong> 51</p>
+  <p><strong>Tests Failed     :</strong> 0</p>
+  <p><strong>Total Time       :</strong> 14.28 seconds</p>
+  <p><strong>Result           :</strong> <span class="pass">All tests PASSED successfully</span></p>
+</div>
+
+<h2>8. Conclusion</h2>
+<p>
+  In this experiment, I tested the BookMyMovie React application using Jest and React Testing Library.
+  I wrote test cases for all the major components like MovieCard, MovieDetails, SeatSelection, and BookingSummary.
+  I also tested the search and filter feature, seat selection and removal, ticket price calculation, and booking confirmation.
+  All 51 test cases passed without any errors. This experiment helped me understand how to write unit tests for React components.
+</p>
+
+<div class="footer">
+  BookMyMovie | Unit 3 - Experiment 1 | Student Lab Record
+</div>
+
+</body>
+</html>

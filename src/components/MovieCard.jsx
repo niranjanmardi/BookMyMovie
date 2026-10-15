@@ -1,3 +1,4 @@
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
 /**
@@ -55,6 +56,8 @@ function MovieCard({ movie, isSelected = false, onSelect }) {
             alt={`${movie.title} poster`}
             className="movie-poster-img"
             loading="lazy"
+            decoding="async"
+            fetchPriority="auto"
             onError={(e) => {
               // Graceful fallback to cinema placeholder
               e.currentTarget.style.display = 'none';
@@ -145,4 +148,4 @@ function MovieCard({ movie, isSelected = false, onSelect }) {
   );
 }
 
-export default MovieCard;
+export default React.memo(MovieCard);

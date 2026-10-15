@@ -62,6 +62,14 @@ function Header() {
               </NavLink>
             </li>
 
+            {/* PWA Ready Indicator (Requirement d) */}
+            <li className="pwa-nav-item">
+              <span className="pwa-indicator-pill" title="PWA Enabled • Offline Ready & Installable">
+                <span className="pwa-dot" aria-hidden="true"></span>
+                <span>PWA</span>
+              </span>
+            </li>
+
             {!isAuthenticated ? (
               /* When Logged Out */
               <>

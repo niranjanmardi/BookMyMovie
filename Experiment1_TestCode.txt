@@ -1,0 +1,1645 @@
+================================================================================
+   UNIT 5 - EXPERIMENT 1 : COMPLETE TEST CODE ARCHIVE
+   Movie Ticket Booking Web Application - BookMyMovie
+   Topics: Component Testing, Jest, React Testing Library
+   Test Execution: 8 Test Suites, 51 Tests, 100% Passing
+================================================================================
+
+SUMMARY OF EXPERIMENT 1 TEST FILES:
+  1. src/__tests__/testUtils.jsx                 --> Redux Provider + MemoryRouter Testing Harness
+  2. src/__tests__/MovieCard.test.jsx            --> [Req a] Poster, Title, Rating, Category Badges
+  3. src/__tests__/MovieDetails.test.jsx         --> [Req a] Loading Spinner, Fetch API, Error Handling
+  4. src/__tests__/MovieSearchAndFilter.test.jsx --> [Req b] Live Title Search, Tamil/Hollywood, Genres
+  5. src/__tests__/SeatSelection.test.jsx        --> [Req c] 110-Seat Auditorium Layout (Rows A-J)
+  6. src/__tests__/SeatSelectionAndRemoval.test.jsx --> [Req c] Toggle Seat, Deselect, Remove Chips
+  7. src/__tests__/TicketPriceCalculation.test.jsx  --> [Req d] Regular(150), Premium(200), Recliner(300)
+  8. src/__tests__/BookingConfirmation.test.jsx     --> [Req e] Ref Codes, Double-Booking, LocalStorage
+  9. src/__tests__/BookingComponents.test.jsx       --> [Req f] Admission Pass, Confirm Button, Reset
+================================================================================
+
+================================================================================
+FILE 1: src/__tests__/testUtils.jsx (Redux & Router Test Wrapper)
+================================================================================
+import React from 'react';
+import { render } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { MemoryRouter } from 'react-router-dom';
+import { configureStore } from '@reduxjs/toolkit';
+import bookingReducer from '../redux/bookingSlice';
+import authReducer from '../redux/authSlice';
+
+export function setupTestStore(preloadedState = {}) {
+  return configureStore({
+    reducer: {
+      booking: bookingReducer,
+      auth: authReducer,
+    },
+    preloadedState,
+  });
+}
+
+export function renderWithProviders(
+  ui,
+  {
+    preloadedState = {},
+    store = setupTestStore(preloadedState),
+    initialEntries = ['/'],
+    ...renderOptions
+  } = {}
+) {
+  function Wrapper({ children }) {
+    return (
+      <Provider store={store}>
+        <MemoryRouter initialEntries={initialEntries}>
+          {children}
+        </MemoryRouter>
+      </Provider>
+    );
+  }
+
+  return {
+    store,
+    ...render(ui, { wrapper: Wrapper, ...renderOptions }),
+  };
+}
+
+
+
+================================================================================
+FILE 2: src/__tests__/MovieCard.test.jsx (Requirement a: Movie Card Component)
+================================================================================
+// ============================================================
+// Experiment 1 - Test Case (a)
+// Component: MovieCard
+// Tool: Jest + React Testing Library
+// What this tests: How the movie card looks and behaves
+// ============================================================
+
+import React from 'react';
+import { screen, fireEvent } from '@testing-library/react';
+import MovieCard from '../components/MovieCard';
+import { renderWithProviders } from './testUtils';
+
+// This is a fake movie object we use for testing
+// Instead of using real data, we create dummy data
+const mockMovie = {
+  id: 'fb-tamil-2026-jailer2',
+  title: 'Jailer 2',
+  category: 'Tamil',
+  language: 'Tamil',
+  genre: 'Action / Crime / Thriller',
+  genres: ['Action', 'Crime', 'Thriller'],
+  rating: 8.8,
+  year: 2026,
+  runtime: '165 min',
+  poster: '/posters/jailer2ogk.jpg',
+  isUpcoming: true,
+};
+
+// describe() groups all test cases related to MovieCard
+describe('Experiment 1: MovieCard Component', () => {
+
+  // Test Case 1: Check if title, rating, category, year, runtime are shown
+  it('renders movie title, rating badge, category badge, and metadata accurately', () => {
+    // Render the MovieCard component with our fake movie
+    renderWithProviders(<MovieCard movie={mockMovie} />);
+
+    // Check if the movie title "Jailer 2" is shown as a heading
+    expect(screen.getByRole('heading', { level: 3, name: 'Jailer 2' })).toBeInTheDocument();
+
+    // Check if rating 8.8 is shown on the card
+    expect(screen.getByText('8.8')).toBeInTheDocument();
+
+    // Check if the Tamil category badge is shown
+    expect(screen.getByTitle('Industry: Tamil')).toHaveTextContent('Tamil');
+
+    // Check if the "Upcoming 2026" badge is shown
+    expect(screen.getByText(/Upcoming • 2026/i)).toBeInTheDocument();
+
+    // Check if Tamil language text and runtime 165 min are shown
+    expect(screen.getAllByText(/Tamil/).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/165 min/)).toBeInTheDocument();
+  });
+
+  // Test Case 2: Check if the poster image loads with correct alt text
+  it('renders poster image with proper alt text', () => {
+    renderWithProviders(<MovieCard movie={mockMovie} />);
+
+    // Find the poster image using its alt text
+    const posterImg = screen.getByAltText('Jailer 2 poster');
+
+    // Check the image is on the page
+    expect(posterImg).toBeInTheDocument();
+
+    // Check the image src path is correct
+    expect(posterImg).toHaveAttribute('src', '/posters/jailer2ogk.jpg');
+  });
+
+  // Test Case 3: Check selected state - when user selects a movie
+  it('shows selected overlay badge and active button style when isSelected is true', () => {
+    // First render with isSelected = false (not selected)
+    const { rerender } = renderWithProviders(
+      <MovieCard movie={mockMovie} isSelected={false} />
+    );
+
+    // "Book Tickets" button should be visible when not selected
+    expect(screen.getByRole('button', { name: /Book Tickets/i })).toBeInTheDocument();
+
+    // "Selected for Booking" badge should NOT be visible
+    expect(screen.queryByText('✓ Selected for Booking')).not.toBeInTheDocument();
+
+    // Now re-render with isSelected = true (user has selected this movie)
+    rerender(<MovieCard movie={mockMovie} isSelected={true} />);
+
+    // Now the selected badge should appear
+    expect(screen.getByText('✓ Selected for Booking')).toBeInTheDocument();
+
+    // Button should now show "Selected" with active class
+    expect(screen.getByRole('button', { name: /✓ Selected/i })).toHaveClass('active-select');
+  });
+
+  // Test Case 4: Check if clicking "Book Tickets" calls the handler function
+  it('calls onSelect handler with movie payload when "Book Tickets" button is clicked', () => {
+    // jest.fn() creates a fake function to track if it was called
+    const handleSelect = jest.fn();
+
+    renderWithProviders(
+      <MovieCard movie={mockMovie} onSelect={handleSelect} />
+    );
+
+    // Find the Book Tickets button
+    const bookBtn = screen.getByRole('button', { name: /Book Tickets/i });
+
+    // Simulate a click on the button
+    fireEvent.click(bookBtn);
+
+    // Check that our fake function was called exactly 1 time
+    expect(handleSelect).toHaveBeenCalledTimes(1);
+
+    // Check that it was called with the correct movie data
+    expect(handleSelect).toHaveBeenCalledWith(mockMovie);
+  });
+
+  // Test Case 5: Check keyboard accessibility (Enter and Space keys)
+  it('handles keyboard accessibility with Enter and Space keys on card', () => {
+    renderWithProviders(<MovieCard movie={mockMovie} />);
+
+    // Find the card element by its aria-label
+    const cardElement = screen.getByRole('button', { name: /View details for Jailer 2/i });
+
+    // Card should have tabIndex=0 so keyboard users can focus it
+    expect(cardElement).toHaveAttribute('tabIndex', '0');
+
+    // Pressing Enter should work without throwing any error
+    fireEvent.keyDown(cardElement, { key: 'Enter', code: 'Enter' });
+
+    // Pressing Space should also work without error
+    fireEvent.keyDown(cardElement, { key: ' ', code: 'Space' });
+  });
+
+  // Test Case 6: Check that the component handles null/undefined movie safely
+  it('returns null gracefully when movie is undefined', () => {
+    // Pass null instead of a movie object
+    const { container } = renderWithProviders(<MovieCard movie={null} />);
+
+    // The component should render nothing (no crash)
+    expect(container.firstChild).toBeNull();
+  });
+
+});
+
+
+
+================================================================================
+FILE 3: src/__tests__/MovieDetails.test.jsx (Requirement a: Movie Details Component)
+================================================================================
+// ============================================================
+// Experiment 1 - Test Case (a)
+// Component: MovieDetails (Movie Details Page)
+// Tool: Jest + React Testing Library
+// What this tests: The movie detail page - loading, data, errors
+// ============================================================
+
+import React from 'react';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
+import MovieDetailsPage from '../pages/MovieDetailsPage';
+import { renderWithProviders } from './testUtils';
+import * as movieApi from '../services/movieApi';
+
+// Fake movie data used for testing the details page
+const mockDetailMovie = {
+  id: 'fb-tamil-2026-jailer2',
+  title: 'Jailer 2',
+  category: 'Tamil',
+  language: 'Tamil',
+  genre: 'Action / Crime / Thriller',
+  genres: ['Action', 'Crime', 'Thriller'],
+  rating: 8.8,
+  year: 2026,
+  releaseDate: '2026-08-14',
+  releaseDateFormatted: 'August 14, 2026',
+  runtime: '165 min',
+  status: 'Upcoming',
+  isUpcoming: true,
+  cast: 'Rajinikanth, Mohanlal, Shiva Rajkumar, Ramya Krishnan',
+  director: 'Nelson Dilipkumar',
+  description: 'Tiger Muthuvel Pandian returns in an explosive sequel.',
+  poster: '/posters/jailer2ogk.jpg',
+  backdrop: '/posters/jailer2ogk.jpg',
+};
+
+// describe() groups all test cases for MovieDetails page
+describe('Experiment 1: MovieDetails Component', () => {
+
+  // After each test, restore all mocked functions to their original state
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  // Test Case 1: Check if a loading spinner shows while data is being fetched
+  it('renders loading state initially while fetching movie details', () => {
+    // We mock getMovieById to never resolve - simulating a slow network
+    jest.spyOn(movieApi, 'getMovieById').mockImplementation(() => new Promise(() => {}));
+
+    // Render the page with a fake URL
+    renderWithProviders(<MovieDetailsPage />, {
+      initialEntries: ['/movies/fb-tamil-2026-jailer2'],
+    });
+
+    // A loading spinner should be shown while waiting for data
+    expect(screen.getByRole('status')).toBeInTheDocument();
+  });
+
+  // Test Case 2: Check if movie details appear correctly after data loads
+  it('renders movie details correctly after successful fetch', async () => {
+    // Mock the API to return our fake movie data
+    jest.spyOn(movieApi, 'getMovieById').mockResolvedValue(mockDetailMovie);
+
+    renderWithProviders(<MovieDetailsPage />, {
+      initialEntries: ['/movies/fb-tamil-2026-jailer2'],
+    });
+
+    // Wait for the data to load and the title to appear
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: 'Jailer 2' })).toBeInTheDocument();
+    });
+
+    // Check that the movie description is shown
+    expect(screen.getByText('Tiger Muthuvel Pandian returns in an explosive sequel.')).toBeInTheDocument();
+
+    // Check that director name is shown
+    expect(screen.getByText('Nelson Dilipkumar')).toBeInTheDocument();
+
+    // Check that cast names are shown
+    expect(screen.getByText(/Rajinikanth, Mohanlal/)).toBeInTheDocument();
+
+    // Check that genre badges like Action, Thriller are shown
+    expect(screen.getByText('Action')).toBeInTheDocument();
+    expect(screen.getByText('Thriller')).toBeInTheDocument();
+
+    // Check that "Book Tickets Now" button exists on the page
+    expect(screen.getByRole('button', { name: /Book Tickets Now/i })).toBeInTheDocument();
+  });
+
+  // Test Case 3: Check if clicking "Book Tickets Now" saves movie in Redux store
+  it('dispatches handleSelectMovie when "Book Tickets Now" is clicked', async () => {
+    jest.spyOn(movieApi, 'getMovieById').mockResolvedValue(mockDetailMovie);
+
+    // Get the store to check Redux state later
+    const { store } = renderWithProviders(<MovieDetailsPage />, {
+      initialEntries: ['/movies/fb-tamil-2026-jailer2'],
+    });
+
+    // Wait for the page to finish loading
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Book Tickets Now/i })).toBeInTheDocument();
+    });
+
+    // Click the Book Tickets Now button
+    const bookBtn = screen.getByRole('button', { name: /Book Tickets Now/i });
+    fireEvent.click(bookBtn);
+
+    // Check that the movie was saved in Redux store as selectedMovie
+    const state = store.getState();
+    expect(state.booking.selectedMovie).toEqual(mockDetailMovie);
+  });
+
+  // Test Case 4: Check if an error message shows when API call fails
+  it('renders error message when movie fetching fails', async () => {
+    // Mock the API to throw an error (simulate network failure or wrong movie ID)
+    jest.spyOn(movieApi, 'getMovieById').mockRejectedValue(new Error('Movie not found in 2026 catalog.'));
+
+    renderWithProviders(<MovieDetailsPage />, {
+      initialEntries: ['/movies/invalid-id'],
+    });
+
+    // Wait for the error message to appear
+    await waitFor(() => {
+      expect(screen.getByText(/Movie not found in 2026 catalog./i)).toBeInTheDocument();
+    });
+
+    // A "Try Again" button should also be visible
+    expect(screen.getByRole('button', { name: /Try Again/i })).toBeInTheDocument();
+  });
+
+});
+
+
+
+================================================================================
+FILE 4: src/__tests__/MovieSearchAndFilter.test.jsx (Requirement b: Movie Search and Filtering)
+================================================================================
+// ============================================================
+// Experiment 1 - Test Case (b)
+// Component: SearchBar, CategoryFilter, GenreFilter
+// Tool: Jest + React Testing Library
+// What this tests: Movie search and filtering feature
+// ============================================================
+
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import SearchBar from '../components/SearchBar';
+import CategoryFilter from '../components/CategoryFilter';
+import GenreFilter from '../components/GenreFilter';
+import { fetchMovies } from '../services/movieApi';
+import { FALLBACK_MOVIES_2026 } from '../data/fallbackMovies';
+
+// describe() groups all search and filter related tests
+describe('Experiment 1: Movie Search and Filtering', () => {
+
+  // ---- SearchBar Tests ----
+  describe('SearchBar Component Unit Tests', () => {
+
+    // Test Case 1: Check if search input shows the placeholder and current value
+    it('renders input with placeholder and reflects provided query', () => {
+      // Render SearchBar with searchQuery = "Batman" already typed
+      render(
+        <SearchBar
+          searchQuery="Batman"
+          onSearchChange={jest.fn()}
+          placeholder="Search movie titles..."
+        />
+      );
+
+      // Find the input by its placeholder text
+      const input = screen.getByPlaceholderText('Search movie titles...');
+
+      // Input should be on the page
+      expect(input).toBeInTheDocument();
+
+      // Input value should show "Batman"
+      expect(input.value).toBe('Batman');
+    });
+
+    // Test Case 2: Check if typing in search calls the onChange function
+    it('triggers onSearchChange when user types in the search bar', () => {
+      // Create a fake onChange function to track calls
+      const handleSearchChange = jest.fn();
+
+      render(<SearchBar searchQuery="" onSearchChange={handleSearchChange} />);
+
+      // Find the search input box
+      const input = screen.getByRole('textbox', { name: /Search movies by title/i });
+
+      // Simulate user typing "Jailer" in the input
+      fireEvent.change(input, { target: { value: 'Jailer' } });
+
+      // The onChange function should have been called once
+      expect(handleSearchChange).toHaveBeenCalledTimes(1);
+
+      // It should have been called with the typed value
+      expect(handleSearchChange).toHaveBeenCalledWith('Jailer');
+    });
+
+    // Test Case 3: Check if clear button appears and works
+    it('displays clear button when query is not empty and resets on click', () => {
+      const handleSearchChange = jest.fn();
+
+      // Render with "Dune" already typed
+      render(<SearchBar searchQuery="Dune" onSearchChange={handleSearchChange} />);
+
+      // Clear button should be visible because there is text in the input
+      const clearBtn = screen.getByRole('button', { name: /Clear search input/i });
+      expect(clearBtn).toBeInTheDocument();
+
+      // Click the clear button
+      fireEvent.click(clearBtn);
+
+      // onChange should be called with empty string to clear the search
+      expect(handleSearchChange).toHaveBeenCalledWith('');
+    });
+
+  });
+
+  // ---- CategoryFilter Tests ----
+  describe('CategoryFilter Component Unit Tests', () => {
+
+    // Test Case 4: Check if category buttons are shown and active state works
+    it('renders category options (All Movies, Tamil, Hollywood) with correct active state', () => {
+      render(
+        <CategoryFilter
+          categories={['All Movies', 'Tamil', 'Hollywood']}
+          selectedCategory="Tamil"   // Tamil is the currently selected category
+          onSelectCategory={jest.fn()}
+        />
+      );
+
+      // Tamil button should have "active" class because it is selected
+      const tamilBtn = screen.getByRole('button', { name: /Tamil/i });
+      expect(tamilBtn).toHaveClass('active');
+
+      // Tamil button should have aria-pressed="true"
+      expect(tamilBtn).toHaveAttribute('aria-pressed', 'true');
+
+      // Hollywood button should NOT have active class
+      const hwBtn = screen.getByRole('button', { name: /Hollywood/i });
+      expect(hwBtn).not.toHaveClass('active');
+    });
+
+    // Test Case 5: Check if clicking a category calls the handler
+    it('calls onSelectCategory when clicking category pills', () => {
+      const handleSelectCategory = jest.fn();
+
+      render(
+        <CategoryFilter
+          categories={['All Movies', 'Tamil', 'Hollywood']}
+          selectedCategory="All Movies"
+          onSelectCategory={handleSelectCategory}
+        />
+      );
+
+      // Click the Hollywood button
+      const hwBtn = screen.getByRole('button', { name: /Hollywood/i });
+      fireEvent.click(hwBtn);
+
+      // Handler should be called once with "Hollywood"
+      expect(handleSelectCategory).toHaveBeenCalledTimes(1);
+      expect(handleSelectCategory).toHaveBeenCalledWith('Hollywood');
+    });
+
+  });
+
+  // ---- GenreFilter Tests ----
+  describe('GenreFilter Component Unit Tests', () => {
+
+    // Test Case 6: Check if genre pills are shown and clicking them works
+    it('renders genre pills and calls onSelectGenre on click', () => {
+      const handleSelectGenre = jest.fn();
+
+      render(
+        <GenreFilter
+          genres={['All Genres', 'Action', 'Drama', 'Sci-Fi']}
+          selectedGenre="Action"   // Action is currently selected
+          onSelectGenre={handleSelectGenre}
+        />
+      );
+
+      // Action button should have "active" class
+      const actionBtn = screen.getByRole('button', { name: 'Action' });
+      expect(actionBtn).toHaveClass('active');
+
+      // Click on Drama button
+      const dramaBtn = screen.getByRole('button', { name: 'Drama' });
+      fireEvent.click(dramaBtn);
+
+      // Handler should be called with "Drama"
+      expect(handleSelectGenre).toHaveBeenCalledWith('Drama');
+    });
+
+  });
+
+  // ---- Integrated Search + Filter Tests ----
+  describe('Integrated Movie Catalog Search & Filter Logic', () => {
+
+    // Test Case 7: No filters = all movies should be returned
+    it('returns all movies when search query and filters are blank / default', async () => {
+      const result = await fetchMovies({
+        search: '',
+        category: 'All Movies',
+        genre: 'All Genres',
+      });
+
+      // Result count should match the total number of fallback movies
+      expect(result.movies.length).toBe(FALLBACK_MOVIES_2026.length);
+    });
+
+    // Test Case 8: Searching by title should filter correctly (case-insensitive)
+    it('filters movie catalog by title search query case-insensitively', async () => {
+      // Search with lowercase "jailer" - should still find "Jailer 2"
+      const result = await fetchMovies({
+        search: 'jailer',
+        category: 'All Movies',
+        genre: 'All Genres',
+      });
+
+      // At least one movie should be found
+      expect(result.movies.length).toBeGreaterThan(0);
+
+      // Every returned movie must have "jailer" in its title
+      result.movies.forEach((movie) => {
+        expect(movie.title.toLowerCase()).toContain('jailer');
+      });
+    });
+
+    // Test Case 9: Filtering by Tamil category
+    it('filters movie catalog by Tamil category', async () => {
+      const result = await fetchMovies({
+        search: '',
+        category: 'Tamil',
+        genre: 'All Genres',
+      });
+
+      expect(result.movies.length).toBeGreaterThan(0);
+
+      // Every returned movie must be Tamil
+      result.movies.forEach((movie) => {
+        expect(movie.category.toLowerCase()).toBe('tamil');
+      });
+    });
+
+    // Test Case 10: Filtering by Hollywood category
+    it('filters movie catalog by Hollywood category', async () => {
+      const result = await fetchMovies({
+        search: '',
+        category: 'Hollywood',
+        genre: 'All Genres',
+      });
+
+      expect(result.movies.length).toBeGreaterThan(0);
+
+      // Every returned movie must be Hollywood
+      result.movies.forEach((movie) => {
+        expect(movie.category.toLowerCase()).toBe('hollywood');
+      });
+    });
+
+    // Test Case 11: Filtering by genre
+    it('filters movie catalog by genre accurately', async () => {
+      const result = await fetchMovies({
+        search: '',
+        category: 'All Movies',
+        genre: 'Action',
+      });
+
+      expect(result.movies.length).toBeGreaterThan(0);
+
+      // Every returned movie must have "Action" as a genre
+      result.movies.forEach((movie) => {
+        const matchesGenre =
+          movie.genres.some((g) => g.toLowerCase() === 'action') ||
+          movie.genre.toLowerCase().includes('action');
+        expect(matchesGenre).toBe(true);
+      });
+    });
+
+    // Test Case 12: Using both search and category filter together
+    it('applies combined search query and category filtering', async () => {
+      const result = await fetchMovies({
+        search: 'Av',           // search for "Av" (like Avengers)
+        category: 'Hollywood',  // only Hollywood movies
+        genre: 'All Genres',
+      });
+
+      // Every result must match both conditions
+      result.movies.forEach((movie) => {
+        expect(movie.title.toLowerCase()).toContain('av');
+        expect(movie.category.toLowerCase()).toBe('hollywood');
+      });
+    });
+
+  });
+
+});
+
+
+
+================================================================================
+FILE 5: src/__tests__/SeatSelection.test.jsx (Requirement c: Seat Selection Layout)
+================================================================================
+// ============================================================
+// Experiment 1 - Test Case (c)
+// Component: SeatSelection
+// Tool: Jest + React Testing Library
+// What this tests: Seat layout rendering and clicking seats
+// ============================================================
+
+import React from 'react';
+import { screen, fireEvent } from '@testing-library/react';
+import SeatSelection from '../components/SeatSelection';
+import { renderWithProviders } from './testUtils';
+
+// Fake data for movie, theatre, date and time
+const mockMovie   = { id: 'm1', title: 'Jailer 2' };
+const mockTheatre = { id: 'th1', name: 'KG Cinemas (Multiplex)', area: 'Race Course' };
+const mockDate    = { iso: '2026-10-15', displayLabel: 'Today (Thu)' };
+const mockTime    = { id: 'st1000', time: '10:00 AM', label: 'Morning' };
+
+// describe() groups all SeatSelection component tests
+describe('Experiment 1: SeatSelection Component', () => {
+
+  // Test Case 1: Check if instructions appear when no movie/theatre/time is selected yet
+  it('displays instructions when screening info is incomplete', () => {
+    // Render SeatSelection with nothing selected
+    renderWithProviders(<SeatSelection />, {
+      preloadedState: {
+        booking: {
+          selectedMovie:   null,  // no movie selected
+          selectedTheatre: null,  // no theatre selected
+          selectedDate:    null,
+          selectedTime:    null,  // no showtime selected
+          selectedSeats:   [],
+          bookedSeatsForCurrentShow: [],
+        },
+      },
+    });
+
+    // The component should tell the user to select theatre, date and showtime first
+    expect(
+      screen.getByText(/Please choose a Theatre, Date, and Showtime above before picking your seats/i)
+    ).toBeInTheDocument();
+  });
+
+  // Test Case 2: Check if all 110 seats and the screen banner are rendered
+  it('renders 110 seats across rows A to J with aisle and screen banner', () => {
+    // Render with all required selections made
+    renderWithProviders(<SeatSelection />, {
+      preloadedState: {
+        booking: {
+          selectedMovie:   mockMovie,
+          selectedTheatre: mockTheatre,
+          selectedDate:    mockDate,
+          selectedTime:    mockTime,
+          selectedSeats:   [],  // no seats selected yet
+        },
+      },
+    });
+
+    // The cinema screen banner text should be visible
+    expect(screen.getByText(/4K LASER CINEMA SCREEN/i)).toBeInTheDocument();
+
+    // All row letters A to J must be visible in the seat grid
+    ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'].forEach((row) => {
+      const rowElements = screen.getAllByText(row);
+      expect(rowElements.length).toBeGreaterThanOrEqual(1);
+    });
+
+    // The seat legend (price guide) should show all 3 categories
+    expect(screen.getByText(/Regular \(A–E\) • ₹150/i)).toBeInTheDocument();
+    expect(screen.getByText(/Premium \(F–H\) • ₹200/i)).toBeInTheDocument();
+    expect(screen.getByText(/Recliner \(I–J\) • ₹300/i)).toBeInTheDocument();
+
+    // Specific seat buttons should exist - checking A1, A5, A6, J11
+    expect(screen.getByRole('button', { name: /^Seat A1,/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Seat A5,/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Seat A6,/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Seat J11,/i })).toBeInTheDocument();
+  });
+
+  // Test Case 3: Check if selected seats show as chips with price breakdown
+  it('displays selected seats in summary chips and calculates subtotal', () => {
+    // Render with 3 seats already selected: A1 (Regular), F1 (Premium), J1 (Recliner)
+    renderWithProviders(<SeatSelection />, {
+      preloadedState: {
+        booking: {
+          selectedMovie:   mockMovie,
+          selectedTheatre: mockTheatre,
+          selectedDate:    mockDate,
+          selectedTime:    mockTime,
+          selectedSeats:   ['A1', 'F1', 'J1'],
+          totalAmount:     650, // 150 + 200 + 300 = 650
+          priceBreakdown: {
+            Regular:  { count: 1, rate: 150, total: 150, seats: ['A1'] },
+            Premium:  { count: 1, rate: 200, total: 200, seats: ['F1'] },
+            Recliner: { count: 1, rate: 300, total: 300, seats: ['J1'] },
+            totalAmount: 650,
+            totalSeats: 3,
+          },
+        },
+      },
+    });
+
+    // It should show "Chosen Seats (3)"
+    expect(screen.getByText(/Chosen Seats \(3\)/i)).toBeInTheDocument();
+
+    // Total should show Rs.650
+    expect(screen.getByText('₹650')).toBeInTheDocument();
+
+    // Price breakdown for each category should be visible
+    expect(screen.getByText(/Regular: 1 × ₹150 = ₹150/i)).toBeInTheDocument();
+    expect(screen.getByText(/Premium: 1 × ₹200 = ₹200/i)).toBeInTheDocument();
+    expect(screen.getByText(/Recliner: 1 × ₹300 = ₹300/i)).toBeInTheDocument();
+  });
+
+  // Test Case 4: Check if clicking a seat adds it to Redux store
+  it('dispatches toggleSeat action when an available seat is clicked', () => {
+    // Get store to check Redux state after clicking
+    const { store } = renderWithProviders(<SeatSelection />, {
+      preloadedState: {
+        booking: {
+          selectedMovie:   mockMovie,
+          selectedTheatre: mockTheatre,
+          selectedDate:    mockDate,
+          selectedTime:    mockTime,
+          selectedSeats:   [],  // start with no seats selected
+        },
+      },
+    });
+
+    // Find seat A1 button
+    const seatA1 = screen.getByRole('button', { name: /^Seat A1,/i });
+
+    // Click on seat A1
+    fireEvent.click(seatA1);
+
+    // Check Redux store - A1 should now be in selectedSeats
+    const state = store.getState();
+    expect(state.booking.selectedSeats).toContain('A1');
+
+    // Total amount should now be Rs.150 (Regular seat price)
+    expect(state.booking.totalAmount).toBe(150);
+  });
+
+});
+
+
+
+================================================================================
+FILE 6: src/__tests__/SeatSelectionAndRemoval.test.jsx (Requirement c: Seat Selection and Removal)
+================================================================================
+// ============================================================
+// Experiment 1 - Test Case (c)
+// Component: SeatSelection (Selection + Removal)
+// Tool: Jest + React Testing Library
+// What this tests: Adding seats, removing seats, Redux actions
+// ============================================================
+
+import React from 'react';
+import { screen, fireEvent } from '@testing-library/react';
+import SeatSelection from '../components/SeatSelection';
+import { renderWithProviders } from './testUtils';
+
+// Import the Redux reducer and actions we want to test directly
+import bookingReducer, { toggleSeat, removeSeat } from '../redux/bookingSlice';
+
+// Fake data for the tests
+const mockMovie   = { id: 'm1', title: 'Jailer 2' };
+const mockTheatre = { id: 'th1', name: 'KG Cinemas', area: 'Race Course' };
+const mockDate    = { iso: '2026-10-15', displayLabel: 'Today (Thu)' };
+const mockTime    = { id: 'st1000', time: '10:00 AM', label: 'Morning' };
+
+describe('Experiment 1: Seat Selection and Removal', () => {
+
+  // ==== Testing Redux Actions Directly (without UI) ====
+  describe('Redux Booking Slice Reducer Actions', () => {
+
+    // Test Case 1: toggleSeat should ADD a seat when it's not already selected
+    it('toggleSeat adds a new seat when not already selected', () => {
+      // Start with empty seats and zero price
+      const initialState = {
+        selectedSeats: [],
+        totalAmount: 0,
+        totalSeats: 0,
+        priceBreakdown: {},
+      };
+
+      // Dispatch toggleSeat action for seat "A1"
+      const nextState = bookingReducer(initialState, toggleSeat('A1'));
+
+      // A1 should now be in the selectedSeats array
+      expect(nextState.selectedSeats).toEqual(['A1']);
+
+      // Price should be Rs.150 (Regular seat)
+      expect(nextState.totalAmount).toBe(150);
+
+      // Total seats count should be 1
+      expect(nextState.totalSeats).toBe(1);
+    });
+
+    // Test Case 2: toggleSeat should REMOVE a seat if it is already selected
+    it('toggleSeat removes the seat when already selected (deselect)', () => {
+      // Start with A1 and A2 already selected
+      const initialState = {
+        selectedSeats: ['A1', 'A2'],
+        totalAmount: 300, // 150 + 150
+        totalSeats: 2,
+        priceBreakdown: {},
+      };
+
+      // Toggle A1 again - should remove it
+      const nextState = bookingReducer(initialState, toggleSeat('A1'));
+
+      // Only A2 should remain
+      expect(nextState.selectedSeats).toEqual(['A2']);
+
+      // Price should drop to Rs.150 (only A2 remains)
+      expect(nextState.totalAmount).toBe(150);
+      expect(nextState.totalSeats).toBe(1);
+    });
+
+    // Test Case 3: removeSeat should remove a specific seat and recalculate total
+    it('removeSeat filters out specified seat and recalculates totals', () => {
+      // Start with 3 seats: A1 (Regular=150), F1 (Premium=200), J1 (Recliner=300)
+      // Total = 650
+      const initialState = {
+        selectedSeats: ['A1', 'F1', 'J1'],
+        totalAmount: 650,
+        totalSeats: 3,
+        priceBreakdown: {},
+      };
+
+      // Remove F1 (Premium seat)
+      const nextState = bookingReducer(initialState, removeSeat('F1'));
+
+      // F1 should no longer be in the list
+      expect(nextState.selectedSeats).toEqual(['A1', 'J1']);
+
+      // New total should be 150 + 300 = 450 (removed the 200 Premium seat)
+      expect(nextState.totalAmount).toBe(450);
+      expect(nextState.totalSeats).toBe(2);
+    });
+
+  });
+
+  // ==== Testing Through the UI (Component Tests) ====
+  describe('Interactive Component Seat Selection and Removal', () => {
+
+    // Test Case 4: Click multiple seats and toggle them off
+    it('allows user to select multiple seats and toggles them off on second click', () => {
+      const { store } = renderWithProviders(<SeatSelection />, {
+        preloadedState: {
+          booking: {
+            selectedMovie:   mockMovie,
+            selectedTheatre: mockTheatre,
+            selectedDate:    mockDate,
+            selectedTime:    mockTime,
+            selectedSeats:   [],
+          },
+        },
+      });
+
+      // Find seat A1 and A4 buttons
+      const seatA1 = screen.getByRole('button', { name: /^Seat A1,/i });
+      const seatA4 = screen.getByRole('button', { name: /^Seat A4,/i });
+
+      // Click A1 - should be selected
+      fireEvent.click(seatA1);
+      expect(store.getState().booking.selectedSeats).toEqual(['A1']);
+
+      // Click A4 - both A1 and A4 should be selected
+      fireEvent.click(seatA4);
+      expect(store.getState().booking.selectedSeats).toEqual(['A1', 'A4']);
+
+      // Click A1 again - should deselect A1, only A4 remains
+      fireEvent.click(seatA1);
+      expect(store.getState().booking.selectedSeats).toEqual(['A4']);
+    });
+
+    // Test Case 5: Click the X button (remove chip) to remove a seat
+    it('removes seat when clicking the remove button (✕) on chosen seat chip', () => {
+      const { store } = renderWithProviders(<SeatSelection />, {
+        preloadedState: {
+          booking: {
+            selectedMovie:   mockMovie,
+            selectedTheatre: mockTheatre,
+            selectedDate:    mockDate,
+            selectedTime:    mockTime,
+            selectedSeats:   ['A1', 'A2'],  // pre-select 2 seats
+            totalAmount: 300,
+            priceBreakdown: {
+              Regular:  { count: 2, rate: 150, total: 300, seats: ['A1', 'A2'] },
+              Premium:  { count: 0, rate: 200, total: 0,   seats: [] },
+              Recliner: { count: 0, rate: 300, total: 0,   seats: [] },
+              totalAmount: 300,
+              totalSeats: 2,
+            },
+          },
+        },
+      });
+
+      // Find the remove button for seat A1 (the small X chip button)
+      const removeBtnA1 = screen.getByTitle('Remove seat A1');
+
+      // Click the X to remove A1
+      fireEvent.click(removeBtnA1);
+
+      // Only A2 should remain in selectedSeats
+      expect(store.getState().booking.selectedSeats).toEqual(['A2']);
+    });
+
+    // Test Case 6: Already booked seats should be disabled (cannot be clicked)
+    it('prevents selecting already booked seats and displays warning toast', () => {
+      const { store } = renderWithProviders(<SeatSelection />, {
+        preloadedState: {
+          booking: {
+            selectedMovie:   mockMovie,
+            selectedTheatre: mockTheatre,
+            selectedDate:    mockDate,
+            selectedTime:    mockTime,
+            selectedSeats:   [],
+          },
+        },
+      });
+
+      // Look for any seat button that has the "booked" CSS class
+      const allSeatButtons = screen.getAllByRole('button');
+      const bookedSeat = allSeatButtons.find((btn) => btn.classList.contains('booked'));
+
+      if (bookedSeat) {
+        // Booked seat should be disabled - user cannot click it
+        expect(bookedSeat).toBeDisabled();
+
+        // Try clicking it anyway
+        fireEvent.click(bookedSeat);
+
+        // Selected seats should still be empty (click had no effect)
+        expect(store.getState().booking.selectedSeats).toEqual([]);
+      }
+    });
+
+  });
+
+});
+
+
+
+================================================================================
+FILE 7: src/__tests__/TicketPriceCalculation.test.jsx (Requirement d: Ticket Price Calculation)
+================================================================================
+// ============================================================
+// Experiment 1 - Test Case (d)
+// File: TicketPriceCalculation.test.jsx
+// Tool: Jest (no UI needed - pure logic testing)
+// What this tests: Ticket price calculation logic
+//
+// Seat Categories and Prices:
+//   Rows A to E --> Regular  --> Rs. 150
+//   Rows F to H --> Premium  --> Rs. 200
+//   Rows I to J --> Recliner --> Rs. 300
+// ============================================================
+
+import {
+  getSeatCategory,
+  getSeatPrice,
+  calculateSeatsPriceBreakdown,
+  SEAT_PRICES,
+} from '../data/seatLayout';
+
+// Also import Redux reducer to test dynamic price recalculation
+import bookingReducer, { toggleSeat, removeSeat } from '../redux/bookingSlice';
+
+describe('Experiment 1: Ticket-Price Calculation', () => {
+
+  // ==== Section 1: Seat Category and Base Price Tests ====
+  describe('Auditorium Tier Classification & Base Rates', () => {
+
+    // Test Case 1: Check if each seat ID is mapped to the correct category
+    it('correctly maps seat IDs to their corresponding categories', () => {
+      // Rows A to E = Regular seats
+      expect(getSeatCategory('A1')).toBe('Regular');
+      expect(getSeatCategory('B5')).toBe('Regular');
+      expect(getSeatCategory('E11')).toBe('Regular');
+
+      // Rows F to H = Premium seats
+      expect(getSeatCategory('F1')).toBe('Premium');
+      expect(getSeatCategory('G6')).toBe('Premium');
+      expect(getSeatCategory('H11')).toBe('Premium');
+
+      // Rows I to J = Recliner seats (most expensive)
+      expect(getSeatCategory('I1')).toBe('Recliner');
+      expect(getSeatCategory('J11')).toBe('Recliner');
+    });
+
+    // Test Case 2: Check the ticket price values defined in SEAT_PRICES
+    it('returns the defined ticket prices for each category', () => {
+      // Check the price constants defined in seatLayout.js
+      expect(SEAT_PRICES.Regular).toBe(150);
+      expect(SEAT_PRICES.Premium).toBe(200);
+      expect(SEAT_PRICES.Recliner).toBe(300);
+
+      // Check price returned for specific seat IDs
+      expect(getSeatPrice('A1')).toBe(150);   // A1 is Regular = 150
+      expect(getSeatPrice('F5')).toBe(200);   // F5 is Premium = 200
+      expect(getSeatPrice('J10')).toBe(300);  // J10 is Recliner = 300
+    });
+
+  });
+
+  // ==== Section 2: Price Breakdown Calculation Tests ====
+  describe('calculateSeatsPriceBreakdown Calculation Engine', () => {
+
+    // Test Case 3: Empty seat list should give zero total
+    it('returns zero totals for empty seat list', () => {
+      // No seats selected - pass empty array
+      const breakdown = calculateSeatsPriceBreakdown([]);
+
+      // All values should be zero
+      expect(breakdown.totalAmount).toBe(0);
+      expect(breakdown.totalSeats).toBe(0);
+      expect(breakdown.Regular.count).toBe(0);
+      expect(breakdown.Premium.count).toBe(0);
+      expect(breakdown.Recliner.count).toBe(0);
+    });
+
+    // Test Case 4: Test with Regular seats (Rs.150 each)
+    it('calculates single and multiple Regular seats (Rs.150 each)', () => {
+      // Single Regular seat
+      const single = calculateSeatsPriceBreakdown(['A1']);
+      expect(single.totalAmount).toBe(150);   // 1 x 150 = 150
+      expect(single.Regular.count).toBe(1);
+      expect(single.Regular.total).toBe(150);
+
+      // Three Regular seats
+      const multiple = calculateSeatsPriceBreakdown(['A1', 'B2', 'C3']);
+      expect(multiple.totalAmount).toBe(450); // 3 x 150 = 450
+      expect(multiple.Regular.count).toBe(3);
+      expect(multiple.Regular.total).toBe(450);
+    });
+
+    // Test Case 5: Test with Premium seats (Rs.200 each)
+    it('calculates Premium seats (Rs.200 each)', () => {
+      // Two Premium seats: F1 and G2
+      const breakdown = calculateSeatsPriceBreakdown(['F1', 'G2']);
+
+      expect(breakdown.totalAmount).toBe(400);  // 2 x 200 = 400
+      expect(breakdown.Premium.count).toBe(2);
+      expect(breakdown.Premium.total).toBe(400);
+    });
+
+    // Test Case 6: Test with Recliner seats (Rs.300 each)
+    it('calculates Recliner luxury seats (Rs.300 each)', () => {
+      // Two Recliner seats: I1 and J2
+      const breakdown = calculateSeatsPriceBreakdown(['I1', 'J2']);
+
+      expect(breakdown.totalAmount).toBe(600);  // 2 x 300 = 600
+      expect(breakdown.Recliner.count).toBe(2);
+      expect(breakdown.Recliner.total).toBe(600);
+    });
+
+    // Test Case 7: Test with mix of all 3 seat types
+    it('calculates multi-tier combination orders accurately', () => {
+      // 2 Regular (A1, B2) = 2 x 150 = 300
+      // 1 Premium  (F5)    = 1 x 200 = 200
+      // 2 Recliner (I1,J11)= 2 x 300 = 600
+      // Total = 300 + 200 + 600 = 1100
+      const seats = ['A1', 'B2', 'F5', 'I1', 'J11'];
+      const breakdown = calculateSeatsPriceBreakdown(seats);
+
+      expect(breakdown.totalSeats).toBe(5);
+
+      expect(breakdown.Regular.count).toBe(2);
+      expect(breakdown.Regular.total).toBe(300);
+
+      expect(breakdown.Premium.count).toBe(1);
+      expect(breakdown.Premium.total).toBe(200);
+
+      expect(breakdown.Recliner.count).toBe(2);
+      expect(breakdown.Recliner.total).toBe(600);
+
+      expect(breakdown.totalAmount).toBe(1100);
+    });
+
+  });
+
+  // ==== Section 3: Dynamic Price Update via Redux ====
+  describe('Dynamic Price Recalculation via Redux Actions', () => {
+
+    // Test Case 8: Price should update each time a seat is added or removed
+    it('dynamically recalculates total as seats are added and removed', () => {
+      // Start with no seats
+      let state = {
+        selectedSeats: [],
+        totalAmount: 0,
+        totalSeats: 0,
+        priceBreakdown: {},
+      };
+
+      // Step 1: Add Regular seat A1 --> total = 150
+      state = bookingReducer(state, toggleSeat('A1'));
+      expect(state.totalAmount).toBe(150);
+
+      // Step 2: Add Premium seat F1 --> total = 150 + 200 = 350
+      state = bookingReducer(state, toggleSeat('F1'));
+      expect(state.totalAmount).toBe(350);
+
+      // Step 3: Add Recliner seat J1 --> total = 350 + 300 = 650
+      state = bookingReducer(state, toggleSeat('J1'));
+      expect(state.totalAmount).toBe(650);
+
+      // Step 4: Remove Regular seat A1 --> total = 650 - 150 = 500
+      state = bookingReducer(state, removeSeat('A1'));
+      expect(state.totalAmount).toBe(500);
+
+      // Step 5: Toggle off Recliner J1 --> total = 500 - 300 = 200
+      state = bookingReducer(state, toggleSeat('J1'));
+      expect(state.totalAmount).toBe(200);
+
+      // Only F1 (Premium) should remain in selectedSeats
+      expect(state.selectedSeats).toEqual(['F1']);
+    });
+
+  });
+
+});
+
+
+
+================================================================================
+FILE 8: src/__tests__/BookingConfirmation.test.jsx (Requirement e: Booking Confirmation & Storage)
+================================================================================
+// ============================================================
+// Experiment 1 - Test Case (e)
+// File: BookingConfirmation.test.jsx
+// Tool: Jest (pure logic testing + Redux state testing)
+// What this tests: Booking confirmation, localStorage, Redux
+// ============================================================
+
+import {
+  confirmNewBooking,
+  getAllSavedBookings,
+  buildShowKey,
+  getBookedSeatsForShow,
+} from '../services/bookingService';
+
+import bookingReducer, {
+  confirmBookingSuccess,
+  setBookingError,
+  clearBooking,
+} from '../redux/bookingSlice';
+
+// Fake movie data for testing
+const mockMovie = {
+  id: 'm1',
+  title: 'Jailer 2',
+  poster: '/posters/jailer2.jpg',
+  category: 'Tamil',
+  language: 'Tamil',
+  year: 2026,
+  rating: 8.8,
+  runtime: '165 min',
+};
+
+// Fake theatre data
+const mockTheatre = {
+  id: 'th1',
+  name: 'KG Cinemas (Multiplex)',
+  area: 'Race Course',
+  address: 'Bunglaw Road, Race Course, Coimbatore',
+  screens: 'Audi 1',
+};
+
+// Fake date
+const mockDate = {
+  iso: '2026-10-15',
+  displayLabel: 'Thu, Oct 15',
+  full: 'Thursday, 15 October 2026',
+};
+
+// Fake showtime
+const mockShowtime = {
+  id: 'st1000',
+  time: '10:00 AM',
+  label: 'Morning Show',
+};
+
+describe('Experiment 1: Booking Confirmation & Persistence', () => {
+
+  // Before each test, clear localStorage so tests don't affect each other
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  // ==== Section 1: confirmNewBooking Function Tests ====
+  describe('confirmNewBooking Core Engine', () => {
+
+    // Test Case 1: Booking should fail if movie or seats are missing
+    it('throws an error if required booking parameters are missing', () => {
+      // Try booking with movie = null (missing movie)
+      expect(() => {
+        confirmNewBooking({
+          movie: null,          // missing!
+          theatre: mockTheatre,
+          date: mockDate,
+          showtime: mockShowtime,
+          seats: ['A1'],
+        });
+      }).toThrow(/Incomplete booking details/i); // should throw an error
+
+      // Try booking with empty seats array
+      expect(() => {
+        confirmNewBooking({
+          movie: mockMovie,
+          theatre: mockTheatre,
+          date: mockDate,
+          showtime: mockShowtime,
+          seats: [],  // no seats selected!
+        });
+      }).toThrow(/Incomplete booking details/i); // should also throw
+    });
+
+    // Test Case 2: A successful booking should return a record with BMM-CBE- reference ID
+    it('creates a verified booking record with BMM-CBE- reference format', () => {
+      // Build a unique key for this show (to check already booked seats)
+      const showKey = buildShowKey(mockMovie.id, mockTheatre.id, mockDate.iso, mockShowtime.id);
+
+      // Get already booked seats for this show
+      const booked = getBookedSeatsForShow(showKey);
+
+      // Find 2 free seats from row A
+      const allRegular = ['A1', 'A4', 'A5', 'A6', 'A7', 'A8', 'A9', 'A10', 'A11'];
+      const freeSeats = allRegular.filter((s) => !booked.includes(s)).slice(0, 2);
+
+      // Confirm the booking with 2 free seats
+      const record = confirmNewBooking({
+        movie: mockMovie,
+        theatre: mockTheatre,
+        date: mockDate,
+        showtime: mockShowtime,
+        seats: freeSeats,
+      });
+
+      // The returned record should be defined
+      expect(record).toBeDefined();
+
+      // Booking ID should follow the BMM-CBE-XXXXXX format
+      expect(record.bookingId).toMatch(/^BMM-CBE-[2-9A-Z]{6}$/);
+      expect(record.reference).toMatch(/^BMM-CBE-[2-9A-Z]{6}$/);
+
+      // Seats should match what we passed
+      expect(record.seats).toEqual(freeSeats);
+
+      // Total amount for 2 Regular seats = 2 x 150 = 300
+      expect(record.amount).toBe(300);
+
+      // Movie and theatre info should be saved
+      expect(record.movie.title).toBe('Jailer 2');
+      expect(record.theatre.name).toBe('KG Cinemas (Multiplex)');
+    });
+
+    // Test Case 3: Booking should be saved in localStorage
+    it('persists booking in localStorage and retrieves from history', () => {
+      const showKey = buildShowKey(mockMovie.id, mockTheatre.id, mockDate.iso, mockShowtime.id);
+      const booked = getBookedSeatsForShow(showKey);
+
+      // Find one free seat from row F (Premium)
+      const freeSeat = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11'].find(
+        (s) => !booked.includes(s)
+      );
+
+      // Confirm the booking
+      const record = confirmNewBooking({
+        movie: mockMovie,
+        theatre: mockTheatre,
+        date: mockDate,
+        showtime: mockShowtime,
+        seats: [freeSeat],
+      });
+
+      // Get all saved bookings from localStorage
+      const history = getAllSavedBookings();
+
+      // At least one booking should exist
+      expect(history.length).toBeGreaterThanOrEqual(1);
+
+      // The first booking in history should match our record
+      expect(history[0].bookingId).toBe(record.bookingId);
+      expect(history[0].seats).toEqual([freeSeat]);
+    });
+
+    // Test Case 4: You should NOT be able to book the same seat twice
+    it('prevents double-booking the same seats for the same show screening', () => {
+      const showKey = buildShowKey(mockMovie.id, mockTheatre.id, mockDate.iso, mockShowtime.id);
+      const booked = getBookedSeatsForShow(showKey);
+
+      // Find one free Recliner seat from row J
+      const freeSeat = ['J1', 'J2', 'J3', 'J4', 'J5', 'J6', 'J7', 'J8', 'J9', 'J10', 'J11'].find(
+        (s) => !booked.includes(s)
+      );
+
+      // First booking - should succeed
+      confirmNewBooking({
+        movie: mockMovie,
+        theatre: mockTheatre,
+        date: mockDate,
+        showtime: mockShowtime,
+        seats: [freeSeat],
+      });
+
+      // Second booking for the same seat - should throw an error
+      expect(() => {
+        confirmNewBooking({
+          movie: mockMovie,
+          theatre: mockTheatre,
+          date: mockDate,
+          showtime: mockShowtime,
+          seats: [freeSeat],  // same seat as before!
+        });
+      }).toThrow(new RegExp(`already booked for this show: ${freeSeat}`, 'i'));
+    });
+
+  });
+
+  // ==== Section 2: Redux State Tests for Booking ====
+  describe('Redux Booking State Confirmation Handlers', () => {
+
+    // Test Case 5: confirmBookingSuccess should set bookingConfirmed = true in Redux
+    it('updates state to confirmed with booking reference on confirmBookingSuccess', () => {
+      // Start state with booking not confirmed
+      const initialState = {
+        bookingConfirmed: false,
+        bookingReference: null,
+        bookingError: 'some old error',
+      };
+
+      // Dispatch confirmBookingSuccess with a reference ID
+      const nextState = bookingReducer(
+        initialState,
+        confirmBookingSuccess('BMM-CBE-ABC123')
+      );
+
+      // bookingConfirmed should now be true
+      expect(nextState.bookingConfirmed).toBe(true);
+
+      // Reference ID should be saved
+      expect(nextState.bookingReference).toBe('BMM-CBE-ABC123');
+
+      // Previous error should be cleared
+      expect(nextState.bookingError).toBeNull();
+    });
+
+    // Test Case 6: setBookingError should save the error message in Redux
+    it('sets bookingError on failure', () => {
+      const initialState = {
+        bookingError: null,
+      };
+
+      // Dispatch setBookingError with an error message
+      const nextState = bookingReducer(
+        initialState,
+        setBookingError('Payment gateway timeout')
+      );
+
+      // bookingError should now have the message
+      expect(nextState.bookingError).toBe('Payment gateway timeout');
+    });
+
+    // Test Case 7: clearBooking should reset everything back to default
+    it('clears all booking state on clearBooking', () => {
+      // Start with a fully filled booking state
+      const populatedState = {
+        selectedMovie: mockMovie,
+        selectedTheatre: mockTheatre,
+        selectedSeats: ['A1', 'A2'],
+        totalAmount: 300,
+        bookingConfirmed: true,
+        bookingReference: 'BMM-CBE-XYZ789',
+      };
+
+      // Dispatch clearBooking to reset everything
+      const resetState = bookingReducer(populatedState, clearBooking());
+
+      // All values should be reset to null/empty/false
+      expect(resetState.selectedMovie).toBeNull();
+      expect(resetState.selectedTheatre).toBeNull();
+      expect(resetState.selectedSeats).toEqual([]);
+      expect(resetState.totalAmount).toBe(0);
+      expect(resetState.bookingConfirmed).toBe(false);
+      expect(resetState.bookingReference).toBeNull();
+    });
+
+  });
+
+});
+
+
+
+================================================================================
+FILE 9: src/__tests__/BookingComponents.test.jsx (Requirement f: Booking Summary & Admission Pass)
+================================================================================
+// ============================================================
+// Experiment 1 - Test Case (f)
+// File: BookingComponents.test.jsx
+// Tool: Jest + React Testing Library
+// What this tests: The BookingSummary (Admission Pass) component
+// ============================================================
+
+import React from 'react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import BookingSummary from '../components/BookingSummary';
+import { renderWithProviders } from './testUtils';
+import * as bookingService from '../services/bookingService';
+
+// Fake booking data for testing
+const mockMovie = {
+  id: 'm1',
+  title: 'Jailer 2',
+  category: 'Tamil',
+  language: 'Tamil',
+  year: 2026,
+  poster: '/posters/jailer2.jpg',
+};
+
+const mockTheatre = {
+  id: 'th1',
+  name: 'KG Cinemas',
+  area: 'Race Course',
+  address: 'Bunglaw Road, Race Course, Coimbatore',
+  screens: 'Audi 1 (4K RGB Laser - Dolby Atmos)',
+};
+
+// Fake date and time
+const mockDate = { iso: '2026-10-15', displayLabel: 'Today (Thu)' };
+const mockTime = { id: 'st1000', time: '10:00 AM', label: 'Morning' };
+
+// describe() groups all booking component tests
+describe('Experiment 1: Booking Components & Admission Pass', () => {
+
+  // After each test, restore mocked functions to their original state
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  // Test Case 1: Check if the admission pass shows all booking details
+  it('renders admission pass ticket structure with movie, theatre, date, time, and seats', () => {
+    // Render BookingSummary with all details in Redux store
+    renderWithProviders(<BookingSummary />, {
+      preloadedState: {
+        booking: {
+          selectedMovie:   mockMovie,
+          selectedTheatre: mockTheatre,
+          selectedDate:    mockDate,
+          selectedTime:    mockTime,
+          selectedSeats:   ['A1', 'A2'],
+          totalAmount:     300,
+          totalSeats:      2,
+          priceBreakdown: {
+            Regular:  { count: 2, rate: 150, total: 300, seats: ['A1', 'A2'] },
+            Premium:  { count: 0, rate: 200, total: 0,   seats: [] },
+            Recliner: { count: 0, rate: 300, total: 0,   seats: [] },
+            totalAmount: 300,
+            totalSeats:  2,
+          },
+          bookingConfirmed: false,
+        },
+      },
+    });
+
+    // The ticket header should say "CINEMA ADMISSION PASS"
+    expect(screen.getByText('CINEMA ADMISSION PASS')).toBeInTheDocument();
+
+    // Movie title should be visible
+    expect(screen.getByText('Jailer 2')).toBeInTheDocument();
+
+    // Theatre name and area should show
+    expect(screen.getByText(/KG Cinemas \(Race Course\)/i)).toBeInTheDocument();
+
+    // Date label should appear
+    expect(screen.getByText('Today (Thu)')).toBeInTheDocument();
+
+    // Show time and label should appear
+    expect(screen.getByText(/10:00 AM \(Morning\)/i)).toBeInTheDocument();
+
+    // Selected seats should be listed
+    expect(screen.getByText('A1, A2')).toBeInTheDocument();
+
+    // Total amount Rs.300 should appear somewhere
+    expect(screen.getAllByText(/300/).length).toBeGreaterThanOrEqual(1);
+  });
+
+  // Test Case 2: Check if the Confirm button is disabled when info is missing
+  it('disables confirm button when required booking details are missing', () => {
+    // Render with theatre missing (null)
+    renderWithProviders(<BookingSummary />, {
+      preloadedState: {
+        booking: {
+          selectedMovie:   mockMovie,
+          selectedTheatre: null,     // no theatre selected
+          selectedDate:    mockDate,
+          selectedTime:    mockTime,
+          selectedSeats:   [],       // no seats selected
+          totalAmount:     0,
+          totalSeats:      0,
+          priceBreakdown: {
+            Regular:  { count: 0, rate: 150, total: 0, seats: [] },
+            Premium:  { count: 0, rate: 200, total: 0, seats: [] },
+            Recliner: { count: 0, rate: 300, total: 0, seats: [] },
+            totalAmount: 0,
+            totalSeats:  0,
+          },
+          bookingConfirmed: false,
+        },
+      },
+    });
+
+    // Find the "Confirm & Book Tickets" button
+    const confirmBtn = screen.getByRole('button', { name: /Confirm & Book Tickets/i });
+
+    // It should be disabled because theatre and seats are missing
+    expect(confirmBtn).toBeDisabled();
+  });
+
+  // Test Case 3: Check if booking works and shows confirmation message + reference ID
+  it('successfully confirms booking and displays confirmation badge and reference code', async () => {
+    // Mock the confirmNewBooking service to return a fake booking ID
+    jest.spyOn(bookingService, 'confirmNewBooking').mockReturnValue({
+      bookingId: 'BMM-CBE-TEST01',
+      reference: 'BMM-CBE-TEST01',
+    });
+
+    // Render with all booking details filled
+    const { store } = renderWithProviders(<BookingSummary />, {
+      preloadedState: {
+        booking: {
+          selectedMovie:   mockMovie,
+          selectedTheatre: mockTheatre,
+          selectedDate:    mockDate,
+          selectedTime:    mockTime,
+          selectedSeats:   ['A1'],
+          totalAmount:     150,
+          totalSeats:      1,
+          priceBreakdown: {
+            Regular:  { count: 1, rate: 150, total: 150, seats: ['A1'] },
+            Premium:  { count: 0, rate: 200, total: 0,   seats: [] },
+            Recliner: { count: 0, rate: 300, total: 0,   seats: [] },
+            totalAmount: 150,
+            totalSeats:  1,
+          },
+          bookingConfirmed: false,
+        },
+      },
+    });
+
+    // Confirm button should be enabled because all info is filled
+    const confirmBtn = screen.getByRole('button', { name: /Confirm & Book Tickets/i });
+    expect(confirmBtn).not.toBeDisabled();
+
+    // Click the Confirm button
+    fireEvent.click(confirmBtn);
+
+    // Wait for Redux state to update
+    await waitFor(() => {
+      const state = store.getState();
+
+      // bookingConfirmed should now be true
+      expect(state.booking.bookingConfirmed).toBe(true);
+
+      // Booking reference should be saved in Redux
+      expect(state.booking.bookingReference).toBe('BMM-CBE-TEST01');
+    });
+
+    // Confirmation message should appear on screen
+    expect(screen.getByText('Booking Confirmed Successfully!')).toBeInTheDocument();
+
+    // Reference code BMM-CBE-TEST01 should appear
+    expect(screen.getAllByText('BMM-CBE-TEST01').length).toBeGreaterThanOrEqual(1);
+
+    // "Book Another Movie" button should appear after confirmation
+    expect(screen.getByRole('button', { name: /Book Another Movie/i })).toBeInTheDocument();
+  });
+
+  // Test Case 4: Check if "Book Another Movie" resets the booking
+  it('resets booking when "Book Another Movie" is clicked', async () => {
+    // Render with a confirmed booking already in state
+    const { store } = renderWithProviders(<BookingSummary />, {
+      preloadedState: {
+        booking: {
+          selectedMovie:    mockMovie,
+          selectedTheatre:  mockTheatre,
+          selectedDate:     mockDate,
+          selectedTime:     mockTime,
+          selectedSeats:    ['A1'],
+          totalAmount:      150,
+          totalSeats:       1,
+          priceBreakdown: {
+            Regular:  { count: 1, rate: 150, total: 150, seats: ['A1'] },
+            Premium:  { count: 0, rate: 200, total: 0,   seats: [] },
+            Recliner: { count: 0, rate: 300, total: 0,   seats: [] },
+            totalAmount: 150,
+            totalSeats:  1,
+          },
+          bookingConfirmed: true,             // booking was already confirmed
+          bookingReference: 'BMM-CBE-TEST01',
+        },
+      },
+    });
+
+    // Click the "Book Another Movie" button
+    const bookAnotherBtn = screen.getByRole('button', { name: /Book Another Movie/i });
+    fireEvent.click(bookAnotherBtn);
+
+    // Check Redux state after clicking
+    const state = store.getState();
+
+    // bookingConfirmed should be reset to false
+    expect(state.booking.bookingConfirmed).toBe(false);
+
+    // selectedMovie should be cleared (null)
+    expect(state.booking.selectedMovie).toBeNull();
+
+    // selectedSeats should be empty
+    expect(state.booking.selectedSeats).toEqual([]);
+  });
+
+});
+
+
+

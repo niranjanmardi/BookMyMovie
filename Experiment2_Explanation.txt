@@ -1,0 +1,414 @@
+================================================================================
+   UNIT 5 - EXPERIMENT 2 : DETAILED LAB EXPLANATION GUIDE
+   Movie Ticket Booking Web Application - BookMyMovie
+   Topics: Lazy Loading, Code Splitting, Performance, PWA, Accessibility, Security
+================================================================================
+
+STUDENT LAB GUIDE & VIVA PREPARATION
+Project: BookMyMovie (React 19 + Redux Toolkit + Vite)
+Date: October 2026
+Author: Student Learning React
+
+--------------------------------------------------------------------------------
+TABLE OF CONTENTS
+--------------------------------------------------------------------------------
+1. Aim of the Experiment
+2. What is Web Optimization & Why Does It Matter?
+3. Objective (a): Lazy Loading Movie Details & Seat Selection
+4. Objective (b): Route-Level Code Splitting (React.lazy & Suspense)
+5. Objective (c): Image & API Data Rendering Optimization
+6. Objective (d): Progressive Web App (PWA) Support (Manifest & Service Worker)
+7. Objective (e): Keyboard Accessibility & Accessible Buttons
+8. Objective (f): Front-End Security Practices & Input Sanitization
+9. Test Execution Summary (70 Tests Passing)
+10. Terminal Commands to Run & Take Screenshots
+11. Viva Voce Questions and Model Answers (15 Questions)
+
+================================================================================
+1. AIM OF THE EXPERIMENT
+================================================================================
+To optimize the BookMyMovie React cinema ticket booking web application by:
+a) Implementing lazy loading for movie details and seat-selection pages.
+b) Applying code splitting to route-level components using React.lazy() and Suspense.
+c) Optimizing movie poster images (lazy loading, async decoding, shimmer skeletons)
+   and API data rendering (in-memory caching with TTL).
+d) Adding basic Progressive Web App (PWA) support with web manifest and service worker.
+e) Implementing keyboard-accessible seat selection with arrow navigation and accessible buttons.
+f) Applying front-end security practices including XSS input sanitization, CSP headers,
+   and sensitive card/phone data masking.
+
+
+================================================================================
+2. WHAT IS WEB OPTIMIZATION & WHY DOES IT MATTER?
+================================================================================
+In a standard single-page application (SPA), the entire website's JavaScript is
+bundled into one gigantic file. When a user opens the home page on their phone or
+laptop, their browser has to download, parse, and execute this massive bundle
+before showing anything on the screen.
+
+Problems with Unoptimized Web Apps:
+1. Slow Initial Load: Users wait seconds staring at a blank screen.
+2. High Data Usage: Mobile users burn mobile data downloading pages they may never visit.
+3. Laggy Main Thread: Giant image decodes and unmemoized re-renders freeze scrolling.
+4. No Offline Support: If the user loses internet connection, the app dies.
+5. Inaccessible to Disabled Users: Users navigating via keyboard or screen readers cannot use it.
+6. Vulnerable to Attacks: Raw inputs can be exploited via Cross-Site Scripting (XSS).
+
+Experiment 2 solves all 6 problems using modern web best practices.
+
+
+================================================================================
+3. OBJECTIVE (a): LAZY LOADING MOVIE DETAILS & SEAT-SELECTION PAGES
+================================================================================
+What is Lazy Loading?
+---------------------
+Lazy loading is a design pattern where heavy parts of an application are NOT
+downloaded until the user actually needs them.
+
+How We Implemented It:
+1. Movie Details Page:
+   In `src/App.jsx`, instead of a static `import MovieDetailsPage from './pages/MovieDetailsPage'`,
+   we load it dynamically:
+   ```javascript
+   const MovieDetailsPage = lazy(() => import('./pages/MovieDetailsPage'));
+   ```
+   Now, if a user just visits the Home page, the JavaScript code for the Movie
+   Details page is never downloaded. It is only fetched when they click a movie!
+
+2. Seat-Selection Component:
+   In `src/pages/BookingPage.jsx`, the 110-seat interactive auditorium layout
+   (`SeatSelection.jsx`) contains complex tier calculations and seat rendering.
+   We lazy-load it with Suspense:
+   ```javascript
+   const SeatSelection = lazy(() => import('../components/SeatSelection'));
+
+   <Suspense fallback={<div className="seat-lazy-loading">⚡ Loading 110 seats...</div>}>
+     <SeatSelection />
+   </Suspense>
+   ```
+
+Result:
+When building the project (`npm run build`), Vite generates separate standalone
+chunks:
+- `dist/assets/MovieDetailsPage-*.js` (6.09 kB)
+- `dist/assets/SeatSelection-*.js` (7.77 kB)
+Initial bundle size is drastically reduced!
+
+
+================================================================================
+4. OBJECTIVE (b): ROUTE-LEVEL CODE SPLITTING (React.lazy & Suspense)
+================================================================================
+What is Code Splitting?
+-----------------------
+Code splitting means breaking up the single JavaScript bundle into small,
+manageable pieces ("chunks"). Each page route gets its own chunk.
+
+How It Works in `src/App.jsx`:
+```javascript
+import React, { Suspense, lazy } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+
+// Each route is code-split into its own JS file
+const HomePage         = lazy(() => import('./pages/HomePage'));
+const LoginPage        = lazy(() => import('./pages/LoginPage'));
+const RegisterPage     = lazy(() => import('./pages/RegisterPage'));
+const MoviesPage       = lazy(() => import('./pages/MoviesPage'));
+const MovieDetailsPage = lazy(() => import('./pages/MovieDetailsPage'));
+const BookingPage      = lazy(() => import('./pages/BookingPage'));
+const SummaryPage      = lazy(() => import('./pages/SummaryPage'));
+const FoodOrderingPage = lazy(() => import('./pages/FoodOrderingPage'));
+const NotFound         = lazy(() => import('./pages/NotFound'));
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Header />
+      <main id="main-content">
+        <Suspense fallback={<RouteLoadingFallback />}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/movies" element={<MoviesPage />} />
+            <Route path="/movies/:id" element={<MovieDetailsPage />} />
+            <Route path="/booking" element={<BookingPage />} />
+            <Route path="/seat-selection" element={<BookingPage />} />
+            ...
+          </Routes>
+        </Suspense>
+      </main>
+      <Footer />
+    </BrowserRouter>
+  );
+}
+```
+
+The Role of <Suspense>:
+While the browser downloads the chunk for `/movies` or `/booking` over the network,
+React needs something to show the user. `<Suspense fallback={<RouteLoadingFallback />}>`
+displays a sleek, accessible spinner and loading text so the user never sees a blank page!
+
+
+================================================================================
+5. OBJECTIVE (c): OPTIMIZE MOVIE IMAGES AND API DATA RENDERING
+================================================================================
+A. Movie Image Optimization (`src/components/OptimizedImage.jsx`):
+1. Native Lazy Loading:
+   `loading="lazy"` tells the browser not to download images until they scroll
+   near the viewport. This saves bandwidth and initial load time.
+2. Asynchronous Decoding:
+   `decoding="async"` decodes images off the main thread, keeping 60 FPS scrolling smooth.
+3. Shimmer Skeleton Loading:
+   Displays a glowing linear-gradient shimmer placeholder while the image loads.
+4. Cumulative Layout Shift (CLS) Prevention:
+   Forces `aspectRatio: '2/3'` on poster wrappers so content does not jump around when images load.
+5. Graceful Fallbacks:
+   If an external image URL is broken or blocked, `onError` catches the failure
+   and renders a clean cinema placeholder icon (🎬).
+
+B. API Data Rendering Optimization (`src/services/movieApi.js`):
+1. In-Memory API Caching (`apiCache`):
+   When users search for movies or open movie details multiple times, fetching
+   from the network each time is slow and wasteful.
+   We implemented an in-memory `Map` cache with a 5-minute Time-To-Live (TTL):
+   ```javascript
+   const apiCache = new Map();
+   const CACHE_TTL_MS = 5 * 60 * 1000;
+
+   export async function fetchMovies({ search, category, genre, page }) {
+     const cacheKey = `fetch_${search}_${category}_${genre}_${page}`;
+     const cached = apiCache.get(cacheKey);
+     if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+       return cached.data; // Return instantly from memory!
+     }
+     ...
+     apiCache.set(cacheKey, { data: result, timestamp: Date.now() });
+     return result;
+   }
+   ```
+2. Component Memoization (`React.memo`):
+   Wrapped `MovieCard` and `SearchBar` with `React.memo` so they only re-render
+   when their specific props change, preventing unnecessary UI repaints.
+
+
+================================================================================
+6. OBJECTIVE (d): BASIC PWA SUPPORT (MANIFEST & SERVICE WORKER)
+================================================================================
+What is a Progressive Web App (PWA)?
+------------------------------------
+A PWA allows a regular web application to behave like a native mobile or desktop
+app: it can be installed on home screens, runs in a standalone window, and works offline!
+
+Core Files Implemented:
+1. Web App Manifest (`public/manifest.json`):
+   Contains metadata about the app:
+   - `name`: "BookMyMovie – Cinema Ticket & Seat Booking"
+   - `short_name`: "BookMyMovie"
+   - `start_url`: "/"
+   - `display`: "standalone" (removes browser address bar)
+   - `theme_color`: "#e50914" (brand red)
+   - `background_color`: "#0b0f19" (dark cinema theme)
+   - `icons`: 64x64, 192x192, 512x512 SVG icons
+
+2. Service Worker (`public/sw.js`):
+   A JavaScript background worker that intercepts network requests:
+   - `install` event: Pre-caches the app shell (`/`, `/index.html`, `/manifest.json`, icons).
+   - `activate` event: Purges old cache versions when a new version deploys.
+   - `fetch` event:
+     * Cache-First strategy for static assets and images.
+     * Network-First with cache fallback for page navigation.
+     * Allows the user to browse cached movies even when offline!
+
+3. Service Worker Registration (`src/serviceWorkerRegistration.js`):
+   Automatically registers the worker in compatible browsers on `window.onload`.
+
+4. Header Link in `index.html`:
+   ```html
+   <link rel="manifest" href="/manifest.json" />
+   <meta name="theme-color" content="#e50914" />
+   <meta name="mobile-web-app-capable" content="yes" />
+   ```
+
+
+================================================================================
+7. OBJECTIVE (e): KEYBOARD ACCESSIBILITY & ACCESSIBLE BUTTONS
+================================================================================
+Why Accessibility (A11y) Matters:
+Many users cannot use a computer mouse. They navigate using keyboards (Tab, Arrows)
+or screen reader assistive technologies.
+
+How We Implemented It in `src/components/SeatSelection.jsx`:
+1. Arrow Key Navigation:
+   - Pressing `ArrowRight` focuses the next seat in the row (e.g., A1 -> A2).
+   - Pressing `ArrowLeft` focuses the previous seat in the row (e.g., A2 -> A1).
+   - Pressing `ArrowDown` jumps to the seat directly below in the next row (e.g., A1 -> B1).
+   - Pressing `ArrowUp` jumps to the seat directly above in the previous row (e.g., B1 -> A1).
+   - Pressing `Home` jumps to the first seat in the row (Seat 1).
+   - Pressing `End` jumps to the last seat in the row (Seat 11).
+
+2. Space & Enter Key Toggling:
+   Pressing Space or Enter toggles the focused seat between selected and unselected.
+
+3. ARIA Attributes for Screen Readers:
+   - `aria-pressed={isSelected}`: Screen reader announces "pressed" when selected.
+   - `aria-disabled={isBooked}`: Screen reader announces "disabled" for booked seats.
+   - `aria-label`: Full spoken description (e.g., "Seat A1, Regular, Rs. 150, Available").
+   - `id="seat-A1"`: Unique DOM identifiers for roving keyboard focus.
+
+4. Live Region (`aria-live="polite"`):
+   Announces seat updates in real time: "Seat A1 selected. Total seats: 1."
+
+5. High-Contrast Focus Ring in `src/App.css`:
+   ```css
+   :focus-visible {
+     outline: 3px solid #38bdf8 !important;
+     outline-offset: 3px !important;
+   }
+   .seat-box:focus-visible {
+     outline: 3px solid #facc15 !important;
+     transform: scale(1.15);
+   }
+   ```
+
+
+================================================================================
+8. OBJECTIVE (f): FRONT-END SECURITY PRACTICES & USER INPUTS
+================================================================================
+Front-end security protects the user and server from malicious data entry.
+
+Security Utility (`src/utils/security.js`):
+1. Input Sanitization (Cross-Site Scripting / XSS Defense):
+   `sanitizeInput(text)` strips `<script>`, `<iframe>`, `javascript:`, and HTML tags.
+   If an attacker inputs `<script>alert('hack')</script>Batman`, it cleans it to `Batman`.
+   Applied across:
+   - `SearchBar.jsx` (movie search query)
+   - `Login.jsx` (username/email identifier)
+   - `RegisterPage.jsx` (registration username)
+   - `BookingSummary.jsx` (booking customer notes)
+
+2. Content Security Policy (CSP) in `index.html`:
+   ```html
+   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https://api.themoviedb.org https://image.tmdb.org http://localhost:* ws://localhost:*;" />
+   ```
+   Restricts which domains can execute scripts and load resources, stopping external code injection.
+
+3. Sensitive Data Masking:
+   - `maskCardNumber(cardNumber)`: Only reveals the last 4 digits (`•••• •••• •••• 4242`).
+   - `maskPhone(phone)`: Masks middle digits (`987 ••••• 3210`).
+   - Protects financial and personal data from shoulder-surfing and log exposure.
+
+4. Input Length & Pattern Enforcement:
+   Added strict `maxLength` attributes (e.g., `maxLength={80}` on search, `maxLength={60}` on username)
+   to prevent memory exhaustion or payload spam.
+
+
+================================================================================
+9. TEST EXECUTION SUMMARY (70 TESTS PASSING - 100% SUCCESS)
+================================================================================
+All 70 tests across 9 test suites pass cleanly with exit code 0:
+
+| # | Test Suite | Tests | Result | Topics Covered |
+|---|------------|-------|--------|----------------|
+| 1 | MovieSearchAndFilter.test.jsx | 12 | PASS | Search, Category, Genre Filters |
+| 2 | MovieCard.test.jsx | 6 | PASS | Poster, Alt text, Lazy, Rating |
+| 3 | MovieDetails.test.jsx | 4 | PASS | Detail Loading, API Mock, Error |
+| 4 | BookingComponents.test.jsx | 4 | PASS | Ticket Pass, Confirmation, Reset |
+| 5 | BookingConfirmation.test.jsx | 7 | PASS | Persistence, Ref Code, Double-Book |
+| 6 | TicketPriceCalculation.test.jsx| 8 | PASS | Regular/Premium/Recliner Rates |
+| 7 | Experiment2_Optimization.test.jsx| 19 | PASS | Lazy, Code Splitting, PWA, A11y, XSS |
+| 8 | SeatSelectionAndRemoval.test.jsx| 6 | PASS | Toggle Seat, Remove Seat, Redux |
+| 9 | SeatSelection.test.jsx | 4 | PASS | 110-Seat Grid, Rows A-J, Aisle |
+|   | TOTAL | 70 | 100% | ALL OBJECTIVES VERIFIED |
+
+
+================================================================================
+10. TERMINAL COMMANDS TO RUN & TAKE SCREENSHOTS
+================================================================================
+To run the tests and show the results in the terminal:
+
+1. Run the test suite:
+   npm test -- --verbose
+
+2. Run the Vite production build to see the code-split chunks:
+   npm run build
+
+3. Start the development server:
+   npm run dev
+
+Take a screenshot of the terminal when `npm test -- --verbose` completes with
+"Test Suites: 9 passed, 9 total" and "Tests: 70 passed, 70 total"!
+
+
+================================================================================
+11. VIVA VOCE QUESTIONS AND MODEL ANSWERS (15 QUESTIONS)
+================================================================================
+
+Q1: What is Code Splitting in React?
+A: Code splitting is the practice of splitting a single large JavaScript bundle
+into multiple smaller chunks. Instead of downloading the whole app at once, the
+browser only downloads code for the specific page the user visits.
+
+Q2: How do you implement lazy loading of a component in React?
+A: By using the `React.lazy()` function with dynamic `import()`, wrapped inside a
+`<Suspense>` component with a `fallback` UI:
+`const Details = React.lazy(() => import('./Details'));`
+
+Q3: What is the purpose of the `<Suspense>` component?
+A: `<Suspense>` catches any child component that is currently loading (e.g. waiting
+for a lazy-loaded chunk or asynchronous data) and renders a fallback UI (like a
+spinner or skeleton) until the component is ready.
+
+Q4: What is a Progressive Web App (PWA)?
+A: A PWA is a web application built using web technologies (HTML, CSS, JS) that
+provides native-app-like capabilities such as installation on home screens,
+offline functionality, and background synchronization.
+
+Q5: What is the role of a Service Worker in a PWA?
+A: A Service Worker is a client-side JavaScript worker that runs in the background
+independent of web pages. It intercepts network fetch requests, caches assets in
+the Cache API, and serves cached content when offline.
+
+Q6: What is a Web App Manifest?
+A: A JSON file (`manifest.json`) that provides browser information about how the app
+should look and behave when installed (e.g. app name, theme color, icons, display mode).
+
+Q7: What does the `loading="lazy"` attribute on an `<img>` tag do?
+A: It instructs the browser to defer loading of the image until it reaches a calculated
+distance from the user's viewport, saving bandwidth on offscreen images.
+
+Q8: What does the `decoding="async"` attribute on an `<img>` tag do?
+A: It tells the browser to decode the image asynchronously on a background thread
+instead of blocking the main thread, preventing UI jank and dropped frames during scrolling.
+
+Q9: What is Cumulative Layout Shift (CLS) and how do you prevent it for images?
+A: CLS occurs when images load without preset dimensions, pushing down the page
+content abruptly. It is prevented by specifying fixed aspect ratios or width/height
+attributes so the browser reserves space before the image arrives.
+
+Q10: Why did we implement an in-memory API cache?
+A: To prevent repeated network round-trips when searching or browsing movies that
+have already been fetched recently. It reduces server load and renders pages instantly.
+
+Q11: How is keyboard navigation implemented in the seat selection grid?
+A: By listening to `onKeyDown` events for Arrow keys (ArrowUp, ArrowDown, ArrowLeft,
+ArrowRight, Home, End), computing the target seat ID, and moving DOM focus using
+element IDs (`#seat-A1`). Space and Enter keys trigger seat selection.
+
+Q12: What is the purpose of `aria-live="polite"`?
+A: It defines a live region where screen readers automatically announce dynamic
+text updates (such as "Seat A1 selected. Total: 1") without interrupting the user.
+
+Q13: What is Cross-Site Scripting (XSS) and how do we prevent it on the front-end?
+A: XSS occurs when malicious JavaScript code is injected into input fields and
+executed by other users' browsers. We prevent it by sanitizing user inputs, stripping
+`<script>` and HTML tags with regular expressions, and escaping HTML entities.
+
+Q14: What is a Content Security Policy (CSP)?
+A: A security standard declared via HTTP headers or `<meta>` tags that restricts the
+sources from which scripts, styles, images, and fonts can be loaded and executed.
+
+Q15: Why is sensitive data like credit cards masked on the front end?
+A: To protect customer privacy from being viewed over their shoulder, recorded in
+screenshots, or leaked through client-side logs. Only the last 4 digits are revealed.
+
+================================================================================
+END OF EXPERIMENT 2 EXPLANATION GUIDE
+================================================================================

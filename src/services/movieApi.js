@@ -21,6 +21,21 @@ const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
 const TMDB_BACKDROP_BASE = 'https://image.tmdb.org/t/p/original';
 
+// ==============================================================================
+// Experiment 2: In-Memory API Cache (Requirement c: Optimize API data rendering)
+// Avoids redundant network requests, speeding up movie catalog & details rendering
+// ==============================================================================
+const apiCache = new Map();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache validity
+
+export function clearApiCache() {
+  apiCache.clear();
+}
+
+export function getApiCacheSize() {
+  return apiCache.size;
+}
+
 // Check for client-side Vite environment variable or global environment
 const TMDB_API_KEY = (() => {
   if (typeof process !== 'undefined' && process.env?.VITE_TMDB_API_KEY) {
@@ -227,6 +242,13 @@ export async function fetchMovies({
   const trimmedSearch = searchTerm.trim();
   const hasKey = isLiveApiConfigured();
 
+  // Check cache first to avoid redundant API or filter work
+  const cacheKey = `fetch_${trimmedSearch}_${category}_${genre}_${page}`;
+  const cached = apiCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return cached.data;
+  }
+
   // If no live key is configured, use the curated 2026 fallback dataset
   if (!hasKey) {
     const fallbackResults = filterFallbackDataset({
@@ -234,7 +256,7 @@ export async function fetchMovies({
       category,
       genre,
     });
-    return {
+    const result = {
       movies: fallbackResults,
       isLiveApi: false,
       total: fallbackResults.length,
@@ -242,6 +264,8 @@ export async function fetchMovies({
       totalPages: 1,
       source: 'local-fallback-2026',
     };
+    apiCache.set(cacheKey, { data: result, timestamp: Date.now() });
+    return result;
   }
 
   // Attempt live TMDB API communication
@@ -302,7 +326,7 @@ export async function fetchMovies({
       );
     }
 
-    return {
+    const result = {
       movies,
       isLiveApi: true,
       total: movies.length,
@@ -310,6 +334,8 @@ export async function fetchMovies({
       totalPages,
       source: 'tmdb-api',
     };
+    apiCache.set(cacheKey, { data: result, timestamp: Date.now() });
+    return result;
   } catch (error) {
     if (error.name === 'AbortError') throw error;
 
@@ -378,16 +404,26 @@ export async function getMovieById(id, { signal } = {}) {
   }
 
   const strId = String(id).trim();
+  const cacheKey = `movie_${strId}`;
+  const cached = apiCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  const cacheAndReturn = (movie) => {
+    if (movie) apiCache.set(cacheKey, { data: movie, timestamp: Date.now() });
+    return movie;
+  };
 
   // 1. Explicit check for fallback ID
   if (strId.startsWith('fb-') || strId.startsWith('bmm-')) {
     const fallbackMatch = getFallbackMovieById(strId);
-    if (fallbackMatch) return fallbackMatch;
+    if (fallbackMatch) return cacheAndReturn(fallbackMatch);
   }
 
   // Exact ID match in 2026 fallback catalog
   const exactLocalMatch = FALLBACK_MOVIES_2026.find((m) => String(m.id) === strId);
-  if (exactLocalMatch) return exactLocalMatch;
+  if (exactLocalMatch) return cacheAndReturn(exactLocalMatch);
 
   // 2. Numeric ID Handling
   const isNumeric = /^\d+$/.test(strId);
@@ -397,7 +433,7 @@ export async function getMovieById(id, { signal } = {}) {
   if (isNumeric && numVal >= 1 && numVal <= FALLBACK_MOVIES_2026.length) {
     if (!isLiveApiConfigured() || numVal <= 15) {
       const indexedMovie = FALLBACK_MOVIES_2026[numVal - 1];
-      if (indexedMovie) return indexedMovie;
+      if (indexedMovie) return cacheAndReturn(indexedMovie);
     }
   }
 
@@ -409,7 +445,7 @@ export async function getMovieById(id, { signal } = {}) {
 
       if (response.ok) {
         const movieData = await response.json();
-        return normalizeTmdbMovie(movieData);
+        return cacheAndReturn(normalizeTmdbMovie(movieData));
       }
     } catch (error) {
       if (error.name === 'AbortError') throw error;
@@ -431,12 +467,12 @@ export async function getMovieById(id, { signal } = {}) {
       );
     });
 
-    if (slugMatch) return slugMatch;
+    if (slugMatch) return cacheAndReturn(slugMatch);
   }
 
   // 5. Safe default to first 2026 movie if no match found
   if (FALLBACK_MOVIES_2026.length > 0) {
-    return FALLBACK_MOVIES_2026[0];
+    return cacheAndReturn(FALLBACK_MOVIES_2026[0]);
   }
 
   throw new Error(`Movie with identifier "${id}" was not found.`);

@@ -1,0 +1,701 @@
+================================================================================
+   UNIT 3 - EXPERIMENT 1
+   Movie Ticket Booking Web Application - BookMyMovie
+   Topic: Component Testing using Jest and React Testing Library
+================================================================================
+
+
+1. AIM
+------
+To test the different components of the BookMyMovie React application using
+Jest and React Testing Library. The test covers:
+  a) Movie Card and Movie Details components
+  b) Movie Search and Filtering
+  c) Seat Selection and Removal
+  d) Ticket Price Calculation
+  e) Booking Confirmation
+  f) Execute all test cases using Jest and React Testing Library
+
+
+================================================================================
+2. WHAT IS COMPONENT TESTING?
+================================================================================
+
+When we build a React application, we create many small pieces called
+"components". For example:
+  - MovieCard   --> shows one movie (poster, title, rating)
+  - SearchBar   --> the search input box
+  - SeatSelection --> the seat grid where user picks seats
+  - BookingSummary --> shows the final booking details
+
+Component Testing means we test each of these components one by one to
+make sure they work correctly BEFORE we combine them together.
+
+Think of it like this:
+  - You build a car.
+  - Before putting it together, you test the engine, brakes, and lights separately.
+  - That is exactly what component testing does for React apps.
+
+
+================================================================================
+3. TOOLS USED
+================================================================================
+
+Tool                         | Version  | Purpose
+-----------------------------|----------|----------------------------------
+Jest                         | 30.5.2   | Test runner - runs all test files
+@testing-library/react       | 16.3.3   | Renders React components for testing
+@testing-library/jest-dom    | 7.0.1    | Extra matchers like toBeInTheDocument
+@testing-library/user-event  | 14.6.7   | Simulates user clicks and typing
+babel-jest                   | 30.5.2   | Converts JSX so Jest can understand it
+jest-environment-jsdom       | 30.5.2   | Fake browser environment for tests
+Redux Toolkit                | 2.13.0   | State management (used in components)
+
+
+================================================================================
+4. PROJECT STRUCTURE - TEST FILES
+================================================================================
+
+src/
+ __tests__/
+   MovieCard.test.jsx              --> Tests for the movie card component
+   MovieDetails.test.jsx           --> Tests for the movie detail page
+   MovieSearchAndFilter.test.jsx   --> Tests for search bar and filters
+   SeatSelection.test.jsx          --> Tests for seat grid component
+   SeatSelectionAndRemoval.test.jsx--> Tests for seat add/remove actions
+   TicketPriceCalculation.test.jsx --> Tests for price calculation logic
+   BookingComponents.test.jsx      --> Tests for the booking summary/pass
+   BookingConfirmation.test.jsx    --> Tests for confirm booking and storage
+   testUtils.jsx                   --> Helper file (renderWithProviders)
+
+
+================================================================================
+5. IMPORTANT CONCEPTS USED IN TESTING
+================================================================================
+
+a) describe()
+-------------
+   describe() is used to GROUP related test cases together.
+   It gives a name to the group.
+
+   Example:
+     describe('MovieCard Component', () => {
+       // all MovieCard tests go here
+     });
+
+
+b) it() or test()
+-----------------
+   it() is used to write ONE single test case.
+   Each it() block tests ONE specific behavior.
+
+   Example:
+     it('renders the movie title on the card', () => {
+       // test code here
+     });
+
+
+c) expect()
+-----------
+   expect() is how we CHECK if something is correct.
+   We always combine it with a MATCHER.
+
+   Common Matchers:
+     expect(element).toBeInTheDocument()    --> element should exist on page
+     expect(element).toHaveTextContent('X') --> element should contain text X
+     expect(element).toBeDisabled()         --> element should be disabled
+     expect(element).toHaveClass('active')  --> element should have CSS class
+     expect(fn).toHaveBeenCalledTimes(1)    --> function should be called once
+     expect(value).toBe(150)                --> value should equal 150
+     expect(array).toEqual(['A1', 'A2'])    --> array should match exactly
+
+
+d) render() / renderWithProviders()
+------------------------------------
+   render() puts the component into a fake browser (jsdom) so we can test it.
+
+   renderWithProviders() is our custom helper that also wraps the component
+   with Redux Provider and MemoryRouter (because our app uses Redux and routing).
+
+   Example:
+     renderWithProviders(<MovieCard movie={mockMovie} />);
+
+
+e) screen
+---------
+   screen is used to FIND elements on the page after rendering.
+
+   Common queries:
+     screen.getByText('Jailer 2')           --> find by visible text
+     screen.getByRole('button', {name: 'X'})-> find button by name
+     screen.getByAltText('poster')          --> find image by alt text
+     screen.getByPlaceholderText('Search..')-> find input by placeholder
+     screen.queryByText('X')                --> find text (returns null if not found)
+     screen.getAllByRole('button')           --> get all buttons on the page
+
+
+f) fireEvent
+------------
+   fireEvent simulates user actions like clicking and typing.
+
+   Examples:
+     fireEvent.click(button)                         --> simulate a click
+     fireEvent.change(input, {target:{value:'Hi'}})  --> simulate typing
+     fireEvent.keyDown(element, {key: 'Enter'})      --> simulate key press
+
+
+g) jest.fn()
+------------
+   jest.fn() creates a FAKE function.
+   We use it to check if a function was called and with what arguments.
+
+   Example:
+     const handleSelect = jest.fn();
+     fireEvent.click(button);
+     expect(handleSelect).toHaveBeenCalledWith(mockMovie);
+
+
+h) jest.spyOn()
+---------------
+   jest.spyOn() is used to MOCK (fake) an existing function.
+   We use it to fake API calls so tests don't need real internet.
+
+   Example:
+     jest.spyOn(movieApi, 'getMovieById').mockResolvedValue(fakeMovieData);
+
+
+i) waitFor()
+------------
+   waitFor() is used when we need to WAIT for something async to happen.
+   For example, waiting for an API call to finish before checking the result.
+
+   Example:
+     await waitFor(() => {
+       expect(screen.getByText('Jailer 2')).toBeInTheDocument();
+     });
+
+
+j) preloadedState
+-----------------
+   Since our app uses Redux, we can pre-fill the Redux store with fake data
+   using preloadedState. This helps us test components in specific states.
+
+   Example:
+     renderWithProviders(<SeatSelection />, {
+       preloadedState: {
+         booking: {
+           selectedMovie: mockMovie,
+           selectedSeats: ['A1', 'A2'],
+           totalAmount: 300,
+         }
+       }
+     });
+
+
+================================================================================
+6. DETAILED EXPLANATION OF EACH TEST FILE
+================================================================================
+
+
+--------------------------------------------------------------------------------
+TEST FILE a) MovieCard.test.jsx - 6 Test Cases
+--------------------------------------------------------------------------------
+
+WHAT IS MovieCard?
+  MovieCard is a component that displays one movie on the home page.
+  It shows: poster image, title, rating, category badge, genre, and buttons.
+
+TEST CASES:
+
+  Test 1: renders movie title, rating badge, category badge, and metadata
+  -----------------------------------------------------------------------
+  We render the MovieCard with a fake movie object (Jailer 2).
+  Then we check:
+  - Is the title "Jailer 2" shown as a heading? --> Yes
+  - Is the rating "8.8" shown? --> Yes
+  - Is the "Tamil" category badge shown? --> Yes
+  - Is the "Upcoming 2026" badge shown? --> Yes
+  - Is "165 min" runtime shown? --> Yes
+
+  Test 2: renders poster image with proper alt text
+  -------------------------------------------------
+  We check that the <img> tag is rendered with:
+  - Correct alt text: "Jailer 2 poster"
+  - Correct src: "/posters/jailer2ogk.jpg"
+
+  Test 3: shows selected overlay badge when isSelected is true
+  ------------------------------------------------------------
+  We first render the card with isSelected=false.
+  - "Selected for Booking" badge should NOT be visible.
+  Then we re-render with isSelected=true.
+  - "Selected for Booking" badge SHOULD now appear.
+  - The button text should change from "Book Tickets" to "Selected".
+
+  Test 4: calls onSelect handler when "Book Tickets" is clicked
+  -------------------------------------------------------------
+  We create a fake function handleSelect = jest.fn().
+  We click the "Book Tickets" button.
+  We check that handleSelect was called exactly 1 time with the movie object.
+
+  Test 5: handles keyboard accessibility (Enter and Space keys)
+  -------------------------------------------------------------
+  We check that the card has tabIndex="0" (so keyboard users can focus it).
+  We simulate pressing Enter and Space keys - no errors should happen.
+
+  Test 6: returns null when movie is undefined
+  --------------------------------------------
+  We pass movie={null} to MovieCard.
+  The component should render NOTHING (no crash, no error).
+
+
+--------------------------------------------------------------------------------
+TEST FILE a) MovieDetails.test.jsx - 4 Test Cases
+--------------------------------------------------------------------------------
+
+WHAT IS MovieDetails?
+  MovieDetailsPage shows all information about one movie when you click on it.
+  It fetches data from the API, then shows: title, cast, director, synopsis, etc.
+
+TEST CASES:
+
+  Test 1: renders loading state while fetching
+  --------------------------------------------
+  We mock the API to never respond (endless loading).
+  We check that a loading spinner (role="status") is shown.
+
+  Test 2: renders movie details after successful fetch
+  ----------------------------------------------------
+  We mock the API to return our fake movie data.
+  After loading, we check:
+  - Title "Jailer 2" appears as heading
+  - Description text appears
+  - Director "Nelson Dilipkumar" appears
+  - Cast "Rajinikanth, Mohanlal" appears
+  - Genre badges "Action" and "Thriller" appear
+  - "Book Tickets Now" button is visible
+
+  Test 3: dispatches setMovie when "Book Tickets Now" is clicked
+  --------------------------------------------------------------
+  We click the "Book Tickets Now" button.
+  We check the Redux store - selectedMovie should now contain Jailer 2.
+
+  Test 4: shows error message when API fails
+  ------------------------------------------
+  We mock the API to throw an error (network failure).
+  We check that the error message appears on screen.
+  We also check a "Try Again" button is shown.
+
+
+--------------------------------------------------------------------------------
+TEST FILE b) MovieSearchAndFilter.test.jsx - 12 Test Cases
+--------------------------------------------------------------------------------
+
+WHAT IS Search and Filtering?
+  The home page has:
+  - SearchBar: type movie name to filter
+  - CategoryFilter: buttons to filter Tamil / Hollywood
+  - GenreFilter: buttons to filter Action / Drama / etc.
+
+SearchBar Tests (3):
+
+  Test 1: SearchBar shows the current search value
+  -------------------------------------------------
+  We render SearchBar with searchQuery="Batman".
+  We check the input value is "Batman".
+
+  Test 2: Typing in SearchBar calls onSearchChange
+  -------------------------------------------------
+  We render SearchBar with empty query.
+  We simulate typing "Jailer".
+  We check that the onChange function was called with "Jailer".
+
+  Test 3: Clear button appears and resets search
+  -----------------------------------------------
+  We render SearchBar with searchQuery="Dune".
+  A clear (X) button should appear.
+  When clicked, it should call onChange with empty string "".
+
+CategoryFilter Tests (2):
+
+  Test 4: Active category button has "active" class
+  -------------------------------------------------
+  We render CategoryFilter with selectedCategory="Tamil".
+  Tamil button should have class="active" and aria-pressed="true".
+  Hollywood button should NOT have active class.
+
+  Test 5: Clicking a category calls onSelectCategory
+  ---------------------------------------------------
+  We click the "Hollywood" button.
+  The handler should be called with "Hollywood".
+
+GenreFilter Tests (1):
+
+  Test 6: Genre pills work correctly
+  -----------------------------------
+  We render GenreFilter with selectedGenre="Action".
+  Action button should be active.
+  We click "Drama" button - handler called with "Drama".
+
+Integrated Filter Tests (6):
+
+  Test 7: No filters = all movies returned
+  -----------------------------------------
+  We call fetchMovies() with empty search and "All Movies" category.
+  The result count should equal the total fallback movie list.
+
+  Test 8: Title search filters correctly (case-insensitive)
+  ----------------------------------------------------------
+  We search "jailer" (lowercase).
+  All returned movies must have "jailer" in the title.
+
+  Test 9: Tamil category filter
+  ------------------------------
+  We filter by category = "Tamil".
+  All returned movies must have category = "tamil".
+
+  Test 10: Hollywood category filter
+  -----------------------------------
+  We filter by category = "Hollywood".
+  All returned movies must have category = "hollywood".
+
+  Test 11: Genre filter
+  ----------------------
+  We filter by genre = "Action".
+  All returned movies must have "action" in their genres.
+
+  Test 12: Combined search + category
+  -------------------------------------
+  We search "Av" AND filter by "Hollywood".
+  All results must match BOTH conditions.
+
+
+--------------------------------------------------------------------------------
+TEST FILE c) SeatSelection.test.jsx - 4 Test Cases
+--------------------------------------------------------------------------------
+
+WHAT IS SeatSelection?
+  The SeatSelection component shows the cinema seat grid.
+  It has 110 seats in rows A to J:
+    - Rows A to E: Regular seats (Rs.150 each)
+    - Rows F to H: Premium seats (Rs.200 each)
+    - Rows I to J: Recliner seats (Rs.300 each)
+
+TEST CASES:
+
+  Test 1: Shows instruction message when screening is not selected
+  ---------------------------------------------------------------
+  If user hasn't selected theatre/date/time yet,
+  the component should show a message saying "Please choose a Theatre, Date,
+  and Showtime above before picking your seats".
+
+  Test 2: Renders all 110 seats and the screen banner
+  ---------------------------------------------------
+  After selecting movie, theatre, date and time,
+  the seat grid should appear with:
+  - "4K LASER CINEMA SCREEN" banner at the top
+  - Row labels A, B, C, D, E, F, G, H, I, J
+  - Price legend: Regular Rs.150, Premium Rs.200, Recliner Rs.300
+  - Individual seat buttons like A1, A5, J11
+
+  Test 3: Selected seats show in chips with price breakdown
+  ---------------------------------------------------------
+  We pre-select seats A1, F1, J1 (total Rs.650).
+  The component should show:
+  - "Chosen Seats (3)"
+  - Total Rs.650
+  - Breakdown: Regular 1x150=150, Premium 1x200=200, Recliner 1x300=300
+
+  Test 4: Clicking a seat dispatches toggleSeat to Redux
+  -------------------------------------------------------
+  We click seat A1.
+  We check Redux store:
+  - selectedSeats should contain 'A1'
+  - totalAmount should be 150
+
+
+--------------------------------------------------------------------------------
+TEST FILE c) SeatSelectionAndRemoval.test.jsx - 6 Test Cases
+--------------------------------------------------------------------------------
+
+Redux Action Tests (3):
+
+  Test 1: toggleSeat ADDS a seat when not selected
+  -------------------------------------------------
+  We start with empty selectedSeats = [].
+  We dispatch toggleSeat('A1').
+  Result: selectedSeats = ['A1'], totalAmount = 150.
+
+  Test 2: toggleSeat REMOVES a seat when already selected
+  -------------------------------------------------------
+  We start with selectedSeats = ['A1', 'A2'].
+  We dispatch toggleSeat('A1') again.
+  Result: selectedSeats = ['A2'], totalAmount = 150.
+
+  Test 3: removeSeat removes a specific seat
+  ------------------------------------------
+  We start with seats A1 (150), F1 (200), J1 (300) = total 650.
+  We dispatch removeSeat('F1').
+  Result: selectedSeats = ['A1', 'J1'], totalAmount = 450.
+
+UI Component Tests (3):
+
+  Test 4: Select multiple seats and deselect on second click
+  ----------------------------------------------------------
+  Click A1 --> ['A1']
+  Click A4 --> ['A1', 'A4']
+  Click A1 again --> ['A4'] (A1 removed)
+
+  Test 5: Remove button (X chip) removes a seat
+  -----------------------------------------------
+  We start with seats A1 and A2 selected.
+  We click the X button on the A1 chip.
+  Result: only A2 remains selected.
+
+  Test 6: Already booked seats are disabled
+  -----------------------------------------
+  We find any seat with 'booked' CSS class.
+  That seat should be disabled (cannot click it).
+  Clicking it should not add it to selectedSeats.
+
+
+--------------------------------------------------------------------------------
+TEST FILE d) TicketPriceCalculation.test.jsx - 8 Test Cases
+--------------------------------------------------------------------------------
+
+WHAT IS BEING TESTED?
+  The price calculation logic in data/seatLayout.js.
+  Functions: getSeatCategory(), getSeatPrice(), calculateSeatsPriceBreakdown()
+
+Seat Category Tests (2):
+
+  Test 1: Seat ID to Category Mapping
+  -------------------------------------
+  A1, B5, E11  --> Regular
+  F1, G6, H11  --> Premium
+  I1, J11      --> Recliner
+
+  Test 2: Price Values
+  --------------------
+  SEAT_PRICES.Regular  = 150
+  SEAT_PRICES.Premium  = 200
+  SEAT_PRICES.Recliner = 300
+
+Price Calculation Tests (5):
+
+  Test 3: Empty seats = zero total
+  ---------------------------------
+  calculateSeatsPriceBreakdown([]) --> totalAmount = 0
+
+  Test 4: Regular seats (Rs.150 each)
+  ------------------------------------
+  ['A1']         --> totalAmount = 150
+  ['A1','B2','C3']--> totalAmount = 450
+
+  Test 5: Premium seats (Rs.200 each)
+  ------------------------------------
+  ['F1','G2'] --> totalAmount = 400
+
+  Test 6: Recliner seats (Rs.300 each)
+  ------------------------------------
+  ['I1','J2'] --> totalAmount = 600
+
+  Test 7: Mixed seats
+  --------------------
+  ['A1','B2','F5','I1','J11']
+    Regular 2 x 150 = 300
+    Premium 1 x 200 = 200
+    Recliner 2 x 300 = 600
+    Total = 1100
+
+Redux Dynamic Calculation Test (1):
+
+  Test 8: Price updates dynamically with Redux
+  ---------------------------------------------
+  Add A1 (Regular)  --> total = 150
+  Add F1 (Premium)  --> total = 350
+  Add J1 (Recliner) --> total = 650
+  Remove A1         --> total = 500
+  Toggle J1 off     --> total = 200
+
+
+--------------------------------------------------------------------------------
+TEST FILE e) BookingConfirmation.test.jsx - 7 Test Cases
+--------------------------------------------------------------------------------
+
+WHAT IS BEING TESTED?
+  The confirmNewBooking() function in services/bookingService.js
+  and Redux actions: confirmBookingSuccess, setBookingError, clearBooking.
+
+confirmNewBooking Tests (4):
+
+  Test 1: Throws error for incomplete details
+  -------------------------------------------
+  If movie=null or seats=[] --> throws "Incomplete booking details" error.
+
+  Test 2: Creates booking with BMM-CBE-XXXXXX format
+  ---------------------------------------------------
+  On success, the record has:
+  - bookingId matching /^BMM-CBE-[2-9A-Z]{6}$/
+  - correct seats, amount, movie, theatre info
+
+  Test 3: Booking saved in localStorage
+  --------------------------------------
+  After confirmNewBooking(), call getAllSavedBookings().
+  The history should contain our booking.
+
+  Test 4: Prevents double booking same seat
+  -----------------------------------------
+  Book seat J1 once --> success.
+  Book seat J1 again --> throws "already booked for this show: J1" error.
+
+Redux State Tests (3):
+
+  Test 5: confirmBookingSuccess action
+  -------------------------------------
+  Before: bookingConfirmed=false, bookingReference=null
+  After:  bookingConfirmed=true, bookingReference='BMM-CBE-ABC123'
+
+  Test 6: setBookingError action
+  --------------------------------
+  Dispatching setBookingError('Payment failed')
+  --> bookingError = 'Payment failed'
+
+  Test 7: clearBooking resets everything
+  ----------------------------------------
+  After clearBooking():
+  selectedMovie=null, selectedSeats=[], totalAmount=0,
+  bookingConfirmed=false, bookingReference=null
+
+
+--------------------------------------------------------------------------------
+TEST FILE f) BookingComponents.test.jsx - 4 Test Cases
+--------------------------------------------------------------------------------
+
+WHAT IS BEING TESTED?
+  The BookingSummary component which shows the "Cinema Admission Pass"
+  and the Confirm Booking button.
+
+  Test 1: Admission pass shows all booking details
+  -------------------------------------------------
+  With movie=Jailer 2, theatre=KG Cinemas, seats=A1,A2, total=300:
+  - "CINEMA ADMISSION PASS" text appears
+  - Movie title "Jailer 2" shown
+  - "KG Cinemas (Race Course)" shown
+  - Date "Today (Thu)" shown
+  - Time "10:00 AM (Morning)" shown
+  - Seats "A1, A2" shown
+  - Amount 300 shown
+
+  Test 2: Confirm button disabled when info is missing
+  ----------------------------------------------------
+  If theatre=null and seats=[], the "Confirm & Book Tickets" button
+  should be DISABLED (user cannot click it).
+
+  Test 3: Booking success flow
+  ----------------------------
+  With all details filled, click "Confirm & Book Tickets":
+  - Redux state updates: bookingConfirmed=true
+  - bookingReference = 'BMM-CBE-TEST01'
+  - "Booking Confirmed Successfully!" message appears
+  - Reference code shown
+  - "Book Another Movie" button appears
+
+  Test 4: Reset booking
+  ---------------------
+  Click "Book Another Movie":
+  - bookingConfirmed = false
+  - selectedMovie = null
+  - selectedSeats = []
+
+
+================================================================================
+7. HOW TO RUN THE TESTS
+================================================================================
+
+Step 1: Open VS Code
+Step 2: Open the integrated terminal (Ctrl + `)
+Step 3: Make sure you are in the BookMyMovie folder:
+          cd "c:\Users\mardi\Documents\VS\unit_3\BookMyMovie"
+Step 4: Run the tests:
+          npm test -- --verbose
+Step 5: Wait for all tests to finish
+Step 6: Take a screenshot of the terminal output
+
+
+================================================================================
+8. UNDERSTANDING THE TEST OUTPUT
+================================================================================
+
+When you run "npm test -- --verbose", you will see output like this:
+
+  PASS  src/__tests__/MovieCard.test.jsx
+    Experiment 1: MovieCard Component
+      v renders movie title, rating badge, category badge (354 ms)
+      v renders poster image with proper alt text (25 ms)
+      ...
+
+Meaning:
+  PASS   --> the entire test file passed (all tests in it succeeded)
+  v      --> individual test passed (the check mark)
+  (Xms)  --> how many milliseconds the test took to run
+
+
+At the bottom you will see the SUMMARY:
+  Test Suites: 8 passed, 8 total
+  Tests:       51 passed, 51 total
+  Snapshots:   0 total
+  Time:        14.28 s
+  Ran all test suites.
+
+This means:
+  - 8 test files (suites) were run - all 8 passed
+  - 51 individual test cases were run - all 51 passed
+  - 0 snapshots (we didn't use snapshot testing)
+  - Took 14.28 seconds total
+
+
+================================================================================
+9. RESULT
+================================================================================
+
+  Test Suites : 8 passed, 8 total
+  Tests       : 51 passed, 51 total
+  Snapshots   : 0 total
+  Time        : 14.28 seconds
+  Result      : ALL TESTS PASSED - 100% pass rate
+
+
+================================================================================
+10. CONCLUSION
+================================================================================
+
+In this experiment, I learned how to write and execute test cases for a
+React web application called BookMyMovie.
+
+I used Jest as the test runner and React Testing Library to render and
+interact with components inside a fake browser environment (jsdom).
+
+I wrote 51 test cases across 8 test files covering:
+  - Movie card rendering and selection
+  - Movie details page (loading, success, error states)
+  - Search bar and filter components
+  - Seat grid rendering and seat selection/removal
+  - Ticket price calculation for different seat tiers
+  - Booking confirmation with localStorage and Redux
+
+All 51 test cases passed successfully without any errors.
+
+This experiment helped me understand:
+  1. How to think about what to test in each component
+  2. How to use Jest matchers to check expected results
+  3. How to simulate user actions like clicking and typing
+  4. How to test Redux actions and state changes
+  5. How to mock API calls so tests work without real internet
+  6. Why testing is important - it helps find bugs early and makes
+     the application more reliable
+
+
+================================================================================
+   END OF EXPERIMENT 1 EXPLANATION
+   BookMyMovie | Unit 3 | React Component Testing Lab
+================================================================================

@@ -17,6 +17,7 @@ function SeatSelection() {
   } = useBooking();
 
   const [blockedSeatWarning, setBlockedSeatWarning] = useState(null);
+  const [liveAnnouncement, setLiveAnnouncement] = useState('');
 
   const handleSeatClick = (seatId) => {
     if (bookedSeatsForCurrentShow.includes(seatId)) {
@@ -26,7 +27,59 @@ function SeatSelection() {
     }
 
     setBlockedSeatWarning(null);
+    const willSelect = !selectedSeats.includes(seatId);
+    setLiveAnnouncement(
+      willSelect
+        ? `Seat ${seatId} selected. Total seats: ${selectedSeats.length + 1}.`
+        : `Seat ${seatId} deselected. Total seats: ${selectedSeats.length - 1}.`
+    );
     handleToggleSeat(seatId);
+  };
+
+  // Keyboard accessibility: Navigate seats using Arrow Keys, Home, End
+  const handleSeatKeyDown = (e, currentRow, currentNum, seatsCount, seatId) => {
+    if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      handleSeatClick(seatId);
+      return;
+    }
+
+    const rowLetters = ROW_CONFIG.map((r) => r.row);
+    const rowIndex = rowLetters.indexOf(currentRow);
+    let targetSeatId = null;
+
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      if (currentNum < seatsCount) {
+        targetSeatId = `${currentRow}${currentNum + 1}`;
+      }
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      if (currentNum > 1) {
+        targetSeatId = `${currentRow}${currentNum - 1}`;
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (rowIndex < rowLetters.length - 1) {
+        targetSeatId = `${rowLetters[rowIndex + 1]}${currentNum}`;
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (rowIndex > 0) {
+        targetSeatId = `${rowLetters[rowIndex - 1]}${currentNum}`;
+      }
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      targetSeatId = `${currentRow}1`;
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      targetSeatId = `${currentRow}${seatsCount}`;
+    }
+
+    if (targetSeatId) {
+      const el = document.getElementById(`seat-${targetSeatId}`);
+      if (el) el.focus();
+    }
   };
 
   const isSelectionDisabled = !selectedMovie || !selectedTheatre || !selectedDate || !selectedTime;
@@ -67,8 +120,18 @@ function SeatSelection() {
         </div>
       </div>
 
+      {/* ── Screen Reader Live Announcer for Accessibility ── */}
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {liveAnnouncement}
+      </div>
+
+      {/* ── Keyboard Accessibility Hint ── */}
+      <div className="keyboard-nav-hint" aria-hidden="true">
+        <span>⌨️ <strong>Accessibility:</strong> Use <kbd className="kbd-pill">Tab</kbd> &amp; <kbd className="kbd-pill">Arrow Keys (↑ ↓ ← →)</kbd> to navigate. Press <kbd className="kbd-pill">Enter</kbd> or <kbd className="kbd-pill">Space</kbd> to pick seats.</span>
+      </div>
+
       {/* ── 110-Seat Grid (10 Rows × 11 Seats) ── */}
-      <div className="cinema-auditorium">
+      <div className="cinema-auditorium" role="region" aria-label="Cinema auditorium seat layout">
         {ROW_CONFIG.map(({ row, category, price, seatsCount }) => (
           <div key={row} className="seat-row-wrapper">
             {/* Category tag on the far left for row clusters */}
@@ -91,9 +154,13 @@ function SeatSelection() {
                   return (
                     <button
                       key={seatId}
+                      id={`seat-${seatId}`}
                       type="button"
                       onClick={() => handleSeatClick(seatId)}
+                      onKeyDown={(e) => handleSeatKeyDown(e, row, num, seatsCount, seatId)}
                       disabled={isBooked || isSelectionDisabled}
+                      aria-pressed={isSelected}
+                      aria-disabled={isBooked || isSelectionDisabled}
                       className={`seat-box tier-${category.toLowerCase()} ${
                         isBooked ? 'booked' : isSelected ? 'selected' : 'available'
                       }`}
@@ -127,9 +194,13 @@ function SeatSelection() {
                   return (
                     <button
                       key={seatId}
+                      id={`seat-${seatId}`}
                       type="button"
                       onClick={() => handleSeatClick(seatId)}
+                      onKeyDown={(e) => handleSeatKeyDown(e, row, num, seatsCount, seatId)}
                       disabled={isBooked || isSelectionDisabled}
+                      aria-pressed={isSelected}
+                      aria-disabled={isBooked || isSelectionDisabled}
                       className={`seat-box tier-${category.toLowerCase()} ${
                         isBooked ? 'booked' : isSelected ? 'selected' : 'available'
                       }`}
@@ -219,17 +290,17 @@ function SeatSelection() {
 
           {/* Category-by-category pricing line */}
           <div className="category-pricing-breakdown-row">
-            {priceBreakdown.Regular.count > 0 && (
+            {priceBreakdown?.Regular?.count > 0 && (
               <span className="tier-breakdown-tag">
                 Regular: {priceBreakdown.Regular.count} × ₹150 = ₹{priceBreakdown.Regular.total}
               </span>
             )}
-            {priceBreakdown.Premium.count > 0 && (
+            {priceBreakdown?.Premium?.count > 0 && (
               <span className="tier-breakdown-tag">
                 Premium: {priceBreakdown.Premium.count} × ₹200 = ₹{priceBreakdown.Premium.total}
               </span>
             )}
-            {priceBreakdown.Recliner.count > 0 && (
+            {priceBreakdown?.Recliner?.count > 0 && (
               <span className="tier-breakdown-tag">
                 Recliner: {priceBreakdown.Recliner.count} × ₹300 = ₹{priceBreakdown.Recliner.total}
               </span>
