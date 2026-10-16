@@ -52,13 +52,13 @@ export async function getBookingHistory(options = {}) {
       saveLocalBookings(data);
       if (showAll || !currentUsername) return data;
       return data.filter(
-        (b) => !b.username || b.username.toLowerCase() === currentUsername.toLowerCase()
+        (b) => Boolean(b.username && b.username.toLowerCase() === currentUsername.toLowerCase())
       );
     }
     const local = getLocalBookings();
     if (showAll || !currentUsername) return local;
     return local.filter(
-      (b) => !b.username || b.username.toLowerCase() === currentUsername.toLowerCase()
+      (b) => Boolean(b.username && b.username.toLowerCase() === currentUsername.toLowerCase())
     );
   } catch (err) {
     // If backend rejected with 401/403 Unauthorized, propagate error
@@ -70,9 +70,19 @@ export async function getBookingHistory(options = {}) {
     const local = getLocalBookings();
     if (showAll || !currentUsername) return local;
     return local.filter(
-      (b) => !b.username || b.username.toLowerCase() === currentUsername.toLowerCase()
+      (b) => Boolean(b.username && b.username.toLowerCase() === currentUsername.toLowerCase())
     );
   }
+}
+
+/**
+ * Remove cancelled bookings from local storage
+ */
+export function clearCancelledBookings() {
+  const list = getLocalBookings();
+  const activeList = list.filter((b) => b.status !== 'CANCELLED');
+  saveLocalBookings(activeList);
+  return activeList;
 }
 
 /**

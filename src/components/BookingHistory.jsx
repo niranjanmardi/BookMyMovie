@@ -4,6 +4,7 @@ import {
   getBookingHistory,
   updateBooking,
   cancelBooking,
+  clearCancelledBookings,
 } from '../services/bookingApiService';
 
 const SHOWTIMED_OPTIONS = [
@@ -34,7 +35,15 @@ function BookingHistory() {
   const [cancellingId, setCancellingId] = useState(null);
   const [actionSuccessMsg, setActionSuccessMsg] = useState(null);
 
-  // 1. GET: Fetch Booking History (scoped to current user account)
+  // Clear Cancelled Handler
+  const handleClearCancelled = () => {
+    clearCancelledBookings();
+    setBookings((prev) => prev.filter((b) => b.status !== 'CANCELLED'));
+    setActionSuccessMsg('Cancelled passes removed from view.');
+    setTimeout(() => setActionSuccessMsg(null), 3500);
+  };
+
+  // 1. GET: Fetch Booking History (strictly scoped to active user)
   const fetchBookings = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -156,15 +165,28 @@ function BookingHistory() {
             </div>
           )}
         </div>
-        <button
-          type="button"
-          onClick={fetchBookings}
-          className="btn-secondary refresh-btn"
-          disabled={loading}
-          title="Refresh booking list (GET)"
-        >
-          {loading ? 'Fetching...' : '🔄 Refresh List (GET)'}
-        </button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {bookings.some((b) => b.status === 'CANCELLED') && (
+            <button
+              type="button"
+              onClick={handleClearCancelled}
+              className="btn-secondary"
+              style={{ fontSize: '12px', padding: '6px 12px', borderRadius: '6px' }}
+              title="Clear cancelled passes from history"
+            >
+              🧹 Clear Cancelled
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={fetchBookings}
+            className="btn-secondary refresh-btn"
+            disabled={loading}
+            title="Refresh booking list (GET)"
+          >
+            {loading ? 'Fetching...' : '🔄 Refresh List (GET)'}
+          </button>
+        </div>
       </div>
 
       {/* Admin Scope Selector: allows toggling between Admin personal bookings and all customer bookings */}

@@ -271,7 +271,7 @@ export function getAllSavedBookings(filterUsername) {
     }
 
     return list.filter(
-      (b) => !b.username || b.username.toLowerCase() === filterUsername.toLowerCase()
+      (b) => Boolean(b.username && b.username.toLowerCase() === filterUsername.toLowerCase())
     );
   } catch (err) {
     console.warn('Error reading saved bookings:', err);

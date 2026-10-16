@@ -474,7 +474,7 @@ function mockApiPlugin() {
             const userBookings = showAll
               ? inMemoryBookings
               : inMemoryBookings.filter(
-                  (b) => !b.username || b.username.toLowerCase() === username.toLowerCase()
+                  (b) => Boolean(b.username && b.username.toLowerCase() === username.toLowerCase())
                 );
 
             res.statusCode = 200;
