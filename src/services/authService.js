@@ -67,12 +67,19 @@ export const authService = {
         user: user || { username: usernameOrEmail },
       };
     } catch (error) {
-      // On static deployment (Vercel, Netlify, GitHub Pages), backend /api/auth returns 404 or ERR_NETWORK
+      // On static deployment (Vercel, Netlify, GitHub Pages), backend /api/auth returns 404, 405, or ERR_NETWORK
+      const status = error.response?.status;
       const isDeploymentFallback =
         !error.response ||
         error.code === 'ERR_NETWORK' ||
-        error.response?.status === 404 ||
-        error.message?.includes('Network Error');
+        status === 404 ||
+        status === 405 ||
+        status === 500 ||
+        status === 502 ||
+        status === 503 ||
+        error.message?.includes('Network Error') ||
+        error.message?.includes('405') ||
+        error.message?.includes('404');
 
       if (isDeploymentFallback) {
         console.info('[authService] Using Cloud & Local authentication sync for deployment');
