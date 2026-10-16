@@ -14,10 +14,19 @@ function getLocalBookings() {
   }
 }
 
-// Helper: Save local persistent bookings
+// Helper: Save local persistent bookings (deduplicating by bookingId)
 function saveLocalBookings(list) {
   try {
-    localStorage.setItem(STORAGE_KEY_BOOKINGS, JSON.stringify(list));
+    const seen = new Set();
+    const unique = [];
+    for (const item of list || []) {
+      const id = item?.bookingId || item?.reference;
+      if (id && !seen.has(id)) {
+        seen.add(id);
+        unique.push(item);
+      }
+    }
+    localStorage.setItem(STORAGE_KEY_BOOKINGS, JSON.stringify(unique));
   } catch (err) {
     console.warn('Storage write failed in bookingApiService:', err);
   }
@@ -125,7 +134,7 @@ export async function createBooking(bookingData) {
     throw new Error('Incomplete booking payload. Movie, theatre, date, showtime, and seats are required.');
   }
 
-  const newId = generateBookingId();
+  const newId = bookingData.bookingId || bookingData.reference || generateBookingId();
   const pricing = calculateSeatsPriceBreakdown(bookingData.seats);
 
   const currentUser = getUser();
@@ -177,7 +186,13 @@ export async function createBooking(bookingData) {
     const response = await axiosInstance.post(API_BASE, payload);
     const created = response.data;
     const list = getLocalBookings();
-    saveLocalBookings([created, ...list]);
+    const existingIdx = list.findIndex(
+      (b) => (b.bookingId || b.reference) === (created.bookingId || created.reference)
+    );
+    const merged = existingIdx !== -1
+      ? list.map((b, i) => (i === existingIdx ? created : b))
+      : [created, ...list];
+    saveLocalBookings(merged);
     return created;
   } catch (err) {
     if (err.response && (err.response.status === 401 || err.response.status === 403)) {
@@ -187,7 +202,12 @@ export async function createBooking(bookingData) {
   }
 
   const list = getLocalBookings();
-  const updatedList = [payload, ...list];
+  const existingIdx = list.findIndex(
+    (b) => (b.bookingId || b.reference) === newId
+  );
+  const updatedList = existingIdx !== -1
+    ? list.map((b, i) => (i === existingIdx ? payload : b))
+    : [payload, ...list];
   saveLocalBookings(updatedList);
   return payload;
 }

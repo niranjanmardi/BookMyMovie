@@ -15,6 +15,24 @@ const SHOWTIMED_OPTIONS = [
   { id: 'st2215', time: '10:15 PM', label: 'Late Night' },
 ];
 
+// Helper: Deduplicates bookings by ID and identical screening + seats
+function deduplicateBookings(list) {
+  const seenId = new Set();
+  const seenShowSeats = new Set();
+  return (list || []).filter((b) => {
+    const id = b.bookingId || b.reference;
+    if (!id || seenId.has(id)) return false;
+    seenId.add(id);
+
+    // Deduplicate identical screening + seats bookings for same user
+    const seatsKey = `${b.username || ''}_${b.movie?.id || b.movie?.title}_${b.theatre?.id || b.theatre?.name}_${b.date?.iso || b.date}_${b.showtime?.time || b.showtime}_${(b.seats || []).slice().sort().join(',')}`;
+    if (seenShowSeats.has(seatsKey)) return false;
+    seenShowSeats.add(seatsKey);
+
+    return true;
+  });
+}
+
 function BookingHistory() {
   const { username } = useAuth();
   const isAdmin = username?.toLowerCase() === 'admin';
@@ -38,19 +56,19 @@ function BookingHistory() {
   // Clear Cancelled Handler
   const handleClearCancelled = () => {
     clearCancelledBookings();
-    setBookings((prev) => prev.filter((b) => b.status !== 'CANCELLED'));
+    setBookings((prev) => deduplicateBookings(prev.filter((b) => b.status !== 'CANCELLED')));
     setActionSuccessMsg('Cancelled passes removed from view.');
     setTimeout(() => setActionSuccessMsg(null), 3500);
   };
 
-  // 1. GET: Fetch Booking History (strictly scoped to active user)
+  // 1. GET: Fetch Booking History (strictly scoped to active user & deduplicated)
   const fetchBookings = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const showAll = isAdmin && viewScope === 'all';
       const data = await getBookingHistory({ all: showAll });
-      setBookings(data);
+      setBookings(deduplicateBookings(data));
     } catch (err) {
       setError(err.message || 'Failed to load booking history.');
     } finally {
@@ -266,7 +284,7 @@ function BookingHistory() {
       {/* 4. Bookings List Grid */}
       {!loading && !error && bookings.length > 0 && (
         <div className="bookings-grid">
-          {bookings.map((b) => {
+          {deduplicateBookings(bookings).map((b) => {
             const isCancelled = b.status === 'CANCELLED';
             const isModified = b.status === 'MODIFIED';
 

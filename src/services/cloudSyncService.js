@@ -199,16 +199,7 @@ export async function saveCloudBookingRecord(bookingRecord, showKey, seats) {
   localMap[showKey] = updatedSeats;
   saveLocalConfirmedSeatsMap(localMap);
 
-  // 2. Append booking record to user's local history
-  try {
-    if (typeof localStorage !== 'undefined') {
-      const raw = localStorage.getItem(STORAGE_KEY_BOOKINGS);
-      const list = raw ? JSON.parse(raw) : [];
-      localStorage.setItem(STORAGE_KEY_BOOKINGS, JSON.stringify([bookingRecord, ...list]));
-    }
-  } catch {}
-
-  // 3. Push to cloud database so other users immediately see the seats as BOOKED & DISABLED
+  // 2. Push to cloud database so other users immediately see the seats as BOOKED & DISABLED
   if (typeof fetch === 'undefined') return bookingRecord;
 
   try {
@@ -231,6 +222,15 @@ export async function saveCloudBookingRecord(bookingRecord, showKey, seats) {
     const currentSeatsForShow = currentCloudMap[showKey] || [];
     currentCloudMap[showKey] = Array.from(new Set([...currentSeatsForShow, ...seats]));
 
+    // Deduplicate cloud bookings by bookingId
+    const seenBookingIds = new Set();
+    const uniqueBookings = [bookingRecord, ...currentBookings].filter((b) => {
+      const id = b.bookingId || b.reference;
+      if (!id || seenBookingIds.has(id)) return false;
+      seenBookingIds.add(id);
+      return true;
+    }).slice(0, 100); // Keep latest 100 bookings
+
     await fetch(`${CLOUD_API_BASE}/${CLOUD_BOOKINGS_DOC_ID}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -238,7 +238,7 @@ export async function saveCloudBookingRecord(bookingRecord, showKey, seats) {
         name: 'bmm_master_bookings_registry_v1',
         data: {
           confirmedShowSeats: currentCloudMap,
-          bookings: [bookingRecord, ...currentBookings].slice(0, 100), // Keep latest 100 bookings
+          bookings: uniqueBookings,
         },
       }),
       signal: controller.signal,

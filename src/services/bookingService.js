@@ -214,12 +214,18 @@ export function confirmNewBooking(bookingData) {
   confirmedMap[showKey] = Array.from(new Set([...previousShowSeats, ...seats]));
   saveConfirmedBookingsMap(confirmedMap);
 
-  // 2. Append to My Bookings list in persistent storage
+  // 2. Append to My Bookings list in persistent storage (deduplicating by bookingId)
   try {
     if (typeof localStorage !== 'undefined') {
       const rawList = localStorage.getItem(STORAGE_KEY_BOOKINGS);
       const existingList = rawList ? JSON.parse(rawList) : [];
-      const updatedList = [bookingRecord, ...existingList];
+      const seen = new Set();
+      const updatedList = [bookingRecord, ...existingList].filter((b) => {
+        const id = b.bookingId || b.reference;
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
       localStorage.setItem(STORAGE_KEY_BOOKINGS, JSON.stringify(updatedList));
 
       // Also update legacy single-record key
@@ -250,6 +256,7 @@ export async function syncShowBookedSeats(showKey) {
 /**
  * Retrieves all saved bookings for the user.
  * If filterUsername is passed, returns only bookings associated with that user.
+ * Always deduplicates by unique booking reference.
  */
 export function getAllSavedBookings(filterUsername) {
   try {
@@ -266,11 +273,19 @@ export function getAllSavedBookings(filterUsername) {
       }
     }
 
+    const seen = new Set();
+    const uniqueList = list.filter((b) => {
+      const id = b.bookingId || b.reference;
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+
     if (!filterUsername) {
-      return list;
+      return uniqueList;
     }
 
-    return list.filter(
+    return uniqueList.filter(
       (b) => Boolean(b.username && b.username.toLowerCase() === filterUsername.toLowerCase())
     );
   } catch (err) {
