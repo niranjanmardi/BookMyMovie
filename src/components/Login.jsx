@@ -171,7 +171,7 @@ function Login({ onSuccess, redirectTo }) {
               id="login-identifier"
               type="text"
               className="form-input"
-              placeholder="e.g. admin or user@example.com"
+              placeholder="Enter your username or email"
               value={identifier}
               onChange={(e) => {
                 setIdentifier(e.target.value);
@@ -227,37 +227,6 @@ function Login({ onSuccess, redirectTo }) {
             )}
           </button>
         </form>
-
-        {/* Demonstration credentials helper */}
-        <div className="demo-credentials-hint">
-          <p style={{ marginBottom: '8px' }}>
-            <strong>Quick Demo Credentials:</strong>
-          </p>
-          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="btn-secondary btn-sm"
-              onClick={() => {
-                setIdentifier('foodie_user');
-                setPassword('secret123');
-                setValidationError('');
-              }}
-            >
-              🍔 Foodie User (secret123)
-            </button>
-            <button
-              type="button"
-              className="btn-secondary btn-sm"
-              onClick={() => {
-                setIdentifier('admin');
-                setPassword('1234');
-                setValidationError('');
-              }}
-            >
-              👑 Admin (1234)
-            </button>
-          </div>
-        </div>
 
         {/* Register Account Switch */}
         <div className="auth-switch-link">
