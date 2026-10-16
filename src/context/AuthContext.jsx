@@ -10,6 +10,8 @@ import {
 } from '../redux/authSlice';
 import { clearBooking } from '../redux/bookingSlice';
 
+import { syncCloudUsers } from '../services/cloudSyncService';
+
 const AuthContext = createContext();
 
 const STORAGE_KEY_USERS = 'bm_users';
@@ -42,8 +44,11 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Synchronize on mount and handle unauthorized 401/403 events from Axios
+  // Synchronize cloud accounts on mount and handle unauthorized events
   useEffect(() => {
+    // Pull registered accounts from cloud database on load
+    syncCloudUsers().catch(() => {});
+
     const handleUnauthorized = (e) => {
       const msg = e.detail?.error || e.detail?.message || 'Session expired. Please log in again.';
       dispatch(logoutSuccess());
@@ -116,7 +121,7 @@ export function AuthProvider({ children }) {
   }, [dispatch]);
 
   // Register helper
-  const register = useCallback((newUser, newPass, confirmPass) => {
+  const register = useCallback(async (newUser, newPass, confirmPass) => {
     const trimmedUser = (newUser || '').trim();
     const trimmedPass = (newPass || '').trim();
     const trimmedConfirm = (confirmPass || '').trim();
@@ -141,15 +146,13 @@ export function AuthProvider({ children }) {
       return { success: false, message: 'That username is reserved.' };
     }
 
-    const users = getStoredUsers();
-    if (users.some((u) => u.username.toLowerCase() === trimmedUser.toLowerCase())) {
-      return { success: false, message: 'Username already registered. Please log in.' };
-    }
+    // Save locally and push to cloud registry for multi-device login after deployment
+    const result = await authService.register({
+      username: trimmedUser,
+      password: obfuscate(trimmedPass),
+    });
 
-    users.push({ username: trimmedUser, password: obfuscate(trimmedPass) });
-    saveStoredUsers(users);
-
-    return { success: true };
+    return result;
   }, []);
 
   const clearError = useCallback(() => {

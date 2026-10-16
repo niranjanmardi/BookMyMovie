@@ -11,6 +11,7 @@
  */
 
 import { ROW_CONFIG, calculateSeatsPriceBreakdown } from '../data/seatLayout.js';
+import { syncCloudBookedSeats, saveCloudBookingRecord } from './cloudSyncService.js';
 
 const STORAGE_KEY_CONFIRMED = 'bmm_confirmed_show_seats';
 const STORAGE_KEY_BOOKINGS = 'bmm_my_bookings_list';
@@ -220,7 +221,22 @@ export function confirmNewBooking({
     console.warn('Failed saving booking history record:', err);
   }
 
+  // 3. Commit to central cloud database so any other user sees these seats as BOOKED immediately
+  saveCloudBookingRecord(bookingRecord, showKey, seats).catch((err) => {
+    console.warn('[bookingService] Deferred cloud seat push:', err.message);
+  });
+
   return bookingRecord;
+}
+
+/**
+ * Asynchronously synchronizes seats for a show with the cloud database
+ */
+export async function syncShowBookedSeats(showKey) {
+  if (!showKey) return [];
+  const initial = getInitialPreBookedSeats(showKey);
+  const cloudSeats = await syncCloudBookedSeats(showKey);
+  return Array.from(new Set([...initial, ...cloudSeats]));
 }
 
 /**

@@ -241,6 +241,21 @@ function mockApiPlugin() {
             );
           }
 
+          // POST /api/auth/register
+          if (url === '/api/auth/register' && req.method === 'POST') {
+            const body = await parseBody(req);
+            const username = (body.username || '').trim();
+            const password = (body.password || '').trim();
+
+            if (!username || !password) {
+              res.statusCode = 400;
+              return res.end(JSON.stringify({ error: 'Username and password are required.' }));
+            }
+
+            res.statusCode = 201;
+            return res.end(JSON.stringify({ success: true, message: 'Account created successfully.' }));
+          }
+
           // GET /api/auth/me
           if (url === '/api/auth/me' && req.method === 'GET') {
             const authHeader = req.headers['authorization'] || req.headers['Authorization'];

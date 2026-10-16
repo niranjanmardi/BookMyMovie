@@ -73,6 +73,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Bypass service worker caching for Vite development server endpoints & HMR
+  if (
+    url.pathname.startsWith('/@') ||
+    url.pathname.includes('node_modules') ||
+    url.search.includes('v=') ||
+    url.search.includes('t=') ||
+    url.port === '5173' ||
+    url.port === '5174'
+  ) {
+    return;
+  }
+
   // A. Static assets & Images: Cache-First strategy
   if (
     request.destination === 'image' ||

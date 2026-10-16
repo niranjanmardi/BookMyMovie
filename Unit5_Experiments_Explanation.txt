@@ -1,0 +1,1074 @@
+================================================================================
+          BOOKMYMOVIE - REACT CINEMA TICKET BOOKING WEB APPLICATION
+       UNIT 5 : COMPREHENSIVE EXPERIMENTS EXPLANATION & LAB GUIDE
+       (Complete Reference for Lab Evaluation, Viva Voce & Code Review)
+       Technology Stack: React 19 + Redux Toolkit + React Router 7 +
+                         Jest + React Testing Library + Vite + PWA + CSS3
+================================================================================
+
+
+TABLE OF CONTENTS:
+------------------
+1. UNIT 5 OVERVIEW & CURRICULUM OBJECTIVES
+2. UNIT 5 - EXPERIMENT 1 : TEST MOVIE BOOKING COMPONENTS
+   2.1 Aim & Core Objectives
+   2.2 Theoretical Foundations of React Component Testing
+   2.3 Testing Stack & Toolchain Explained
+   2.4 Project Test Architecture & Helper Utilities (testUtils.jsx)
+   2.5 Detailed Breakdown of All 8 Test Suites & 51 Test Cases
+       - Suite 1: MovieCard.test.jsx (6 tests)
+       - Suite 2: MovieDetails.test.jsx (4 tests)
+       - Suite 3: MovieSearchAndFilter.test.jsx (12 tests)
+       - Suite 4: SeatSelection.test.jsx (4 tests)
+       - Suite 5: SeatSelectionAndRemoval.test.jsx (6 tests)
+       - Suite 6: TicketPriceCalculation.test.jsx (8 tests)
+       - Suite 7: BookingComponents.test.jsx (4 tests)
+       - Suite 8: BookingConfirmation.test.jsx (7 tests)
+   2.6 Test Execution Summary & Terminal Verification
+3. UNIT 5 - EXPERIMENT 2 : OPTIMIZE MOVIE BOOKING APPLICATION
+   3.1 Aim & Core Objectives
+   3.2 Why Optimization Matters: The Monolithic Bundle Problem
+   3.3 Objective (a): Lazy Loading Movie Details & Seat Selection
+   3.4 Objective (b): Route-Level Code Splitting (React.lazy & Suspense)
+   3.5 Objective (c): Image & API Data Rendering Optimization
+   3.6 Objective (d): Progressive Web App (PWA) Support (Manifest & Service Worker)
+   3.7 Objective (e): Keyboard Accessibility & Accessible Buttons (WCAG 2.1 AA)
+   3.8 Objective (f): Front-End Security Practices & Input Sanitization
+   3.9 Optimization Test Suite: Experiment2_Optimization.test.jsx (19 tests)
+   3.10 Combined Test Execution Summary (70 Tests Passing - 100%)
+4. ARCHITECTURAL COMPARISON: EXPERIMENT 1 VS. EXPERIMENT 2
+5. VIVA VOCE QUESTIONS & MODEL ANSWERS (30 QUESTIONS)
+   - Part A: Component Testing, Jest, RTL, and Redux (Q1 - Q15)
+   - Part B: Performance, Code Splitting, PWA, A11y & Security (Q16 - Q30)
+6. STEP-BY-STEP LAB DEMONSTRATION & SCREENSHOT INSTRUCTIONS
+
+
+================================================================================
+1. UNIT 5 OVERVIEW & CURRICULUM OBJECTIVES
+================================================================================
+
+In the evolution of web application development:
+- Unit 3 established Single Page Application (SPA) architecture, component
+  hierarchies, React Hooks (useState, useMemo, useRef, useCallback), Redux Toolkit,
+  and client-side routing.
+- Unit 4 integrated Asynchronous REST APIs, external movie catalogs (TVMaze/TMDB),
+  dynamic Coimbatore cinema infrastructure, and Token-based Authentication.
+- UNIT 5 elevates BookMyMovie to enterprise-grade production readiness by focusing
+  on two critical pillars of modern full-stack front-end engineering:
+  
+  Pillar 1 (Experiment 1): COMPONENT TESTING & QUALITY ASSURANCE
+  - Validating individual UI components in isolation before system integration.
+  - Using industry-standard test runners (Jest) and DOM rendering utilities
+    (React Testing Library) to ensure zero regressions across catalog search,
+    seat reservation, price computing, and booking confirmation.
+  
+  Pillar 2 (Experiment 2): WEB PERFORMANCE OPTIMIZATION, PWA, A11Y & SECURITY
+  - Eliminating bloated initial bundle downloads via Route-level Code Splitting
+    and Component-level Lazy Loading with React.lazy() and Suspense.
+  - Speeding up data rendering through in-memory API caching with TTL and
+    preventing UI jank with asynchronous image decoding and shimmer skeletons.
+  - Turning the web app into an installable, offline-capable Progressive Web
+    App (PWA) using Web App Manifest and Service Workers.
+  - Ensuring universal usability through full keyboard accessibility and
+    ARIA-compliant seat selection.
+  - Securing user interactions with Cross-Site Scripting (XSS) input sanitization,
+    Content Security Policy (CSP) headers, and financial data masking.
+
+
+================================================================================
+2. UNIT 5 - EXPERIMENT 1 : TEST MOVIE BOOKING COMPONENTS
+================================================================================
+
+2.1 AIM & CORE OBJECTIVES
+-------------------------
+To thoroughly test the individual components and business logic of the BookMyMovie
+React cinema ticketing application using Jest and React Testing Library.
+
+Syllabus Lab Mapping:
+a) Create test cases for movie cards, movie details, seat selection, and
+   booking components.
+b) Test movie search and filtering functionality.
+c) Test seat selection and removal mechanisms.
+d) Test ticket-price calculation algorithms across multiple seat categories.
+e) Test booking confirmation, storage persistence, and reference generation.
+f) Execute all test cases using Jest and React Testing Library in a headless
+   browser environment (jsdom).
+
+
+2.2 THEORETICAL FOUNDATIONS OF REACT COMPONENT TESTING
+------------------------------------------------------
+A. What is Component Testing?
+In React, an application is composed of modular, decoupled components. Component
+Testing verifies that a single component renders its expected DOM output, responds
+accurately to props, dispatches correct callbacks on user interaction, and manages
+its internal or Redux state reliably, without needing a full browser or backend.
+
+B. The React Testing Library (RTL) Philosophy:
+Traditional testing frameworks inspected internal component states, private
+variables, or implementation details (e.g., shallow rendering in Enzyme).
+React Testing Library introduces a user-centric paradigm:
+"The more your tests resemble the way your software is used, the more confidence
+they can give you."
+- Tests do not care if a component is written as a class, function, or custom hook.
+- Tests query elements the same way a human or screen reader finds them: by visible
+  text (`getByText`), accessible role (`getByRole('button', { name: 'Book Tickets' })`),
+  label (`getByLabelText`), or placeholder (`getByPlaceholderText`).
+
+C. The Testing Pyramid:
+1. Unit Tests: Test isolated JavaScript functions (e.g., price calculation math,
+   sanitization regex).
+2. Component / Integration Tests: Render React components in jsdom, simulate user
+   clicks and typing, and verify DOM changes and Redux store dispatches.
+3. End-to-End (E2E) Tests: Automate real browser sessions (e.g., Cypress/Playwright).
+Experiment 1 focuses primarily on Component and Integration Testing.
+
+
+2.3 TESTING STACK & TOOLCHAIN EXPLAINED
+---------------------------------------
+1. Jest (v30.5.2):
+   - JavaScript testing framework and test runner.
+   - Provides test discovery (`*.test.jsx`), test grouping (`describe`), test
+     cases (`it` / `test`), assertion library (`expect`), and mocking facilities
+     (`jest.fn()`, `jest.spyOn()`, `jest.mock()`).
+   - Runs in Node.js and executes tests concurrently with isolated sandboxes.
+
+2. @testing-library/react (v16.3.3):
+   - Mounts React component trees into the simulated DOM using `render()`.
+   - Exposes the `screen` object for DOM queries.
+   - Provides lifecycle cleanup (`cleanup()`) after each test to prevent test leaks.
+
+3. @testing-library/jest-dom (v7.0.1):
+   - Extends Jest's `expect` assertions with custom DOM matchers:
+     * `toBeInTheDocument()`: Checks whether an element is attached to DOM.
+     * `toHaveTextContent(text)`: Checks text inside an element.
+     * `toBeDisabled()` / `toBeEnabled()`: Checks input/button interactive state.
+     * `toHaveClass(className)`: Checks CSS class presence.
+     * `toHaveAttribute(attr, val)`: Checks HTML/ARIA attributes.
+
+4. @testing-library/user-event & fireEvent:
+   - `fireEvent`: Dispatches native DOM events (`click`, `change`, `keyDown`).
+   - `userEvent`: Simulates higher-level, multi-event user gestures (e.g., hover,
+     focus, keypress sequences).
+
+5. babel-jest & Babel Preset:
+   - Transpiles modern JSX and ES Module syntax into CommonJS that Node.js
+     and Jest can execute seamlessly.
+
+6. jest-environment-jsdom:
+   - A pure JavaScript implementation of web standards (HTML DOM, window, document,
+     localStorage) running directly in Node.js without launching Chrome or Firefox.
+
+
+2.4 PROJECT TEST ARCHITECTURE & HELPER UTILITIES (testUtils.jsx)
+----------------------------------------------------------------
+Because BookMyMovie components rely on Redux Toolkit (`useSelector`, `useDispatch`)
+and React Router (`useNavigate`, `<Link>`), rendering a raw `<MovieCard />` would
+throw errors (`Could not find store`, `useNavigate must be used within a Router`).
+
+To solve this, we created `src/__tests__/testUtils.jsx`:
+```javascript
+import React from 'react';
+import { render } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { configureStore } from '@reduxjs/toolkit';
+import { MemoryRouter } from 'react-router-dom';
+import bookingReducer from '../store/bookingSlice';
+import authReducer from '../store/authSlice';
+
+export function renderWithProviders(
+  ui,
+  {
+    preloadedState = {},
+    store = configureStore({
+      reducer: { booking: bookingReducer, auth: authReducer },
+      preloadedState,
+    }),
+    route = '/',
+    ...renderOptions
+  } = {}
+) {
+  function Wrapper({ children }) {
+    return (
+      <Provider store={store}>
+        <MemoryRouter initialEntries={[route]}>
+          {children}
+        </MemoryRouter>
+      </Provider>
+    );
+  }
+  return { store, ...render(ui, { wrapper: Wrapper, ...renderOptions }) };
+}
+```
+Benefits:
+- `preloadedState` allows tests to inject exact scenarios (e.g., 3 pre-selected seats,
+  logged-in user session, or empty cart).
+- `MemoryRouter` isolates routing history in memory without affecting the real URL.
+
+
+2.5 DETAILED BREAKDOWN OF ALL 8 TEST SUITES & 51 TEST CASES
+-----------------------------------------------------------
+
+--------------------------------------------------------------------------------
+SUITE 1: MovieCard.test.jsx (6 Test Cases)
+Component Under Test: `src/components/MovieCard.jsx`
+--------------------------------------------------------------------------------
+Purpose: Verifies the UI presentation and user interactions of individual movie
+cards displayed in the cinema catalog.
+
+Test Case 1.1: "renders movie title, rating badge, category badge, and metadata accurately"
+- Action: Renders `<MovieCard movie={mockMovie} />` with "Jailer 2" (Rating 8.8,
+  Tamil, Upcoming 2026, 165 min).
+- Assertion: Verifies `screen.getByRole('heading', { level: 3, name: 'Jailer 2' })`
+  is in document; checks presence of "8.8", "Tamil", "Upcoming 2026", "165 min".
+
+Test Case 1.2: "renders poster image with proper alt text"
+- Action: Queries `screen.getByRole('img', { name: /Jailer 2 poster/i })`.
+- Assertion: Confirms image exists, has non-empty `src` attribute containing the
+  poster path, and possesses valid accessible `alt` text.
+
+Test Case 1.3: "shows selected overlay badge and active button style when isSelected is true"
+- Action: Compares `isSelected={false}` vs. `isSelected={true}`.
+- Assertion: When true, verifies "Selected for Booking" overlay banner appears, and
+  the CTA button text dynamically changes to "Selected".
+
+Test Case 1.4: "calls onSelect handler with movie payload when 'Book Tickets' button is clicked"
+- Action: Creates a mock spy `const handleSelect = jest.fn()`, passes it as prop,
+  and simulates `fireEvent.click(button)`.
+- Assertion: `expect(handleSelect).toHaveBeenCalledTimes(1)` and verified payload
+  matches `mockMovie`.
+
+Test Case 1.5: "handles keyboard accessibility with Enter and Space keys on card"
+- Action: Dispatches `fireEvent.keyDown(card, { key: 'Enter' })` and
+  `fireEvent.keyDown(card, { key: ' ' })`.
+- Assertion: Confirms card responds to keyboard activation without runtime errors,
+  supporting keyboard-only users.
+
+Test Case 1.6: "returns null gracefully when movie is undefined"
+- Action: Renders `<MovieCard movie={null} />`.
+- Assertion: Verifies container is empty (`container.firstChild === null`) and
+  does not trigger a React unhandled exception crash.
+
+--------------------------------------------------------------------------------
+SUITE 2: MovieDetails.test.jsx (4 Test Cases)
+Component Under Test: `src/pages/MovieDetailsPage.jsx`
+--------------------------------------------------------------------------------
+Purpose: Verifies the asynchronous lifecycle of movie details: initial loading,
+successful API data binding, Redux booking dispatch, and network error handling.
+
+Test Case 2.1: "renders loading skeleton state initially while fetching movie details"
+- Action: Mocks API `getMovieById` with an unresolved Promise.
+- Assertion: Checks that a loading spinner or skeleton with `role="status"` is
+  rendered while data is in-flight.
+
+Test Case 2.2: "renders movie details correctly after successful fetch"
+- Action: Resolves `getMovieById` with complete movie record (synopsis, cast:
+  "Rajinikanth, Mohanlal", director: "Nelson Dilipkumar", genres: Action, Thriller).
+- Assertion: Uses `await waitFor()` to verify heading, synopsis text, cast list,
+  director badge, and genres render into the DOM.
+
+Test Case 2.3: "dispatches handleSelectMovie when 'Book Tickets Now' CTA is clicked"
+- Action: Clicks the primary booking CTA button after data loads.
+- Assertion: Verifies Redux store receives the `setSelectedMovie` action with the
+  active movie object.
+
+Test Case 2.4: "renders error state message and retry button when movie fetching fails"
+- Action: Rejects API call with `new Error('Failed to fetch movie details')`.
+- Assertion: Asserts that an error notice (`role="alert"`) is displayed along with
+  an actionable "Retry" button.
+
+--------------------------------------------------------------------------------
+SUITE 3: MovieSearchAndFilter.test.jsx (12 Test Cases)
+Components Under Test: `SearchBar.jsx`, `CategoryFilter.jsx`, `GenreFilter.jsx`,
+and filter logic in `movieApi.js`
+--------------------------------------------------------------------------------
+Purpose: Validates interactive text search, industry category filtering (Tamil/
+Hollywood), genre pill toggling, and multi-parameter catalog filtering.
+
+SearchBar Tests:
+- Test 3.1: Renders input with placeholder and reflects provided query value.
+- Test 3.2: Typing into input dispatches `onSearchChange` callback with new value.
+- Test 3.3: Renders clear (X) button when query is non-empty; clicking it invokes
+  `onSearchChange('')`.
+
+CategoryFilter Tests:
+- Test 3.4: Applies active CSS styling and `aria-pressed="true"` to active category.
+- Test 3.5: Clicking an inactive category pill triggers `onSelectCategory(category)`.
+
+GenreFilter Tests:
+- Test 3.6: Genre pills render properly; clicking a pill invokes `onSelectGenre(genre)`.
+
+Integrated Filter Logic Tests:
+- Test 3.7: Default state (empty query, "All Movies") returns entire movie catalog.
+- Test 3.8: Title search filters movies case-insensitively (e.g., "jailer" matches "Jailer 2").
+- Test 3.9: Filtering by "Tamil" returns only Tamil cinema entries.
+- Test 3.10: Filtering by "Hollywood" returns only Hollywood/English entries.
+- Test 3.11: Filtering by genre (e.g., "Action") returns only movies containing Action.
+- Test 3.12: Combined query: simultaneous title search ("Av") and category ("Hollywood")
+  returns only movies satisfying BOTH criteria (e.g., "Avengers: Doomsday").
+
+--------------------------------------------------------------------------------
+SUITE 4: SeatSelection.test.jsx (4 Test Cases)
+Component Under Test: `src/components/SeatSelection.jsx`
+--------------------------------------------------------------------------------
+Purpose: Verifies the 110-seat Coimbatore auditorium layout, seat tier pricing,
+and interactive seat state transitions.
+
+Test Case 4.1: "displays instructions notice when screening info is incomplete"
+- Action: Renders component when theatre, date, or time has not yet been selected.
+- Assertion: Displays helper notice: "Please choose a Theatre, Date, and Showtime
+  above before picking your seats."
+
+Test Case 4.2: "renders 110 seats across rows A to J with aisle and 4K screen banner"
+- Action: Supplies complete screening context.
+- Assertion: Checks for "4K LASER CINEMA SCREEN" banner, row headers A through J,
+  center walking aisle division between seat 5 and 6, and exactly 110 total seats.
+
+Test Case 4.3: "displays selected seats in summary chips and calculates subtotal"
+- Action: Preloads state with selected seats `['A1', 'F1', 'J1']`.
+- Assertion: Checks that chosen chips appear with correct tier tags (Regular,
+  Premium, Recliner) and subtotal matches ₹650 (150 + 200 + 300).
+
+Test Case 4.4: "dispatches toggleSeat action when an available seat is clicked"
+- Action: Simulates click on available seat button "A1".
+- Assertion: Verifies Redux store updates `selectedSeats` to include `['A1']`
+  and updates `totalAmount` to 150.
+
+--------------------------------------------------------------------------------
+SUITE 5: SeatSelectionAndRemoval.test.jsx (6 Test Cases)
+Components Under Test: `bookingSlice.js` Redux reducer & `SeatSelection.jsx`
+--------------------------------------------------------------------------------
+Purpose: Verifies the full lifecycle of selecting, toggling, and removing seats
+both at the Redux store state layer and the DOM UI layer.
+
+Redux State Reducer Tests:
+- Test 5.1: `toggleSeat` adds seat ID to `selectedSeats` array when not present.
+- Test 5.2: `toggleSeat` removes seat ID from `selectedSeats` when already present
+  and decrements `totalAmount` accordingly.
+- Test 5.3: `removeSeat` specifically removes targeted seat from an array of
+  multiple seats and recalculates price.
+
+UI Interaction Tests:
+- Test 5.4: Clicking seat A1 adds it; clicking seat A4 adds it; clicking seat A1
+  again deselects it and removes active highlighting.
+- Test 5.5: Clicking the "X" remove icon on a selected seat summary chip removes
+  that specific seat from selection.
+- Test 5.6: Seats marked as already booked (from simulation or previous reservations)
+  render with `disabled` attribute; clicking them has no effect.
+
+--------------------------------------------------------------------------------
+SUITE 6: TicketPriceCalculation.test.jsx (8 Test Cases)
+Business Logic Under Test: `src/data/seatLayout.js` & `bookingSlice.js`
+--------------------------------------------------------------------------------
+Purpose: Validates mathematical accuracy of ticket pricing across all seat tiers.
+
+Seat Tier Logic Tests:
+- Test 6.1: Correctly classifies seat IDs into tiers:
+  * Rows A-E -> 'Regular'
+  * Rows F-H -> 'Premium'
+  * Rows I-J -> 'Recliner'
+- Test 6.2: Verifies baseline pricing constants:
+  * Regular: ₹150
+  * Premium: ₹200
+  * Recliner: ₹300
+
+Price Calculation Tests:
+- Test 6.3: Empty seat array returns ₹0 total.
+- Test 6.4: Single & multiple Regular seats compute correctly (1 × 150 = 150, 3 × 150 = 450).
+- Test 6.5: Premium seats compute correctly (2 × 200 = 400).
+- Test 6.6: Recliner seats compute correctly (2 × 300 = 600).
+- Test 6.7: Mixed selection computes accurately:
+  ['A1', 'B2', 'F5', 'I1', 'J11'] -> 2 Regular (300) + 1 Premium (200) + 2 Recliner (600) = ₹1100.
+- Test 6.8: Redux dynamic recalculation: price updates synchronously upon each
+  seat addition and removal.
+
+--------------------------------------------------------------------------------
+SUITE 7: BookingComponents.test.jsx (4 Test Cases)
+Component Under Test: `src/components/BookingSummary.jsx`
+--------------------------------------------------------------------------------
+Purpose: Verifies the Cinema Admission Pass ticket presentation, validation
+guards, confirmation dispatch, and reset flow.
+
+Test Case 7.1: "renders admission pass ticket structure with movie, theatre, date, time, and seats"
+- Action: Renders pass with Jailer 2, KG Cinemas, Today, 10:00 AM, Seats A1 & A2.
+- Assertion: Verifies "CINEMA ADMISSION PASS" title, theatre location, showtime,
+  seat badges, and itemized subtotal are visible.
+
+Test Case 7.2: "disables confirm button when required booking details are missing"
+- Action: Renders with movie selected but zero seats selected.
+- Assertion: Confirms "Confirm & Book Tickets" button possesses `disabled` property.
+
+Test Case 7.3: "successfully confirms booking and displays confirmation badge and reference code"
+- Action: Clicks enabled "Confirm & Book Tickets" button.
+- Assertion: Verifies confirmation checkmark, "Booking Confirmed Successfully!"
+  banner, and generated reference code appear.
+
+Test Case 7.4: "resets booking when 'Book Another Movie' is clicked"
+- Action: Clicks "Book Another Movie" button after confirmation.
+- Assertion: Verifies state is purged and user is redirected to catalog.
+
+--------------------------------------------------------------------------------
+SUITE 8: BookingConfirmation.test.jsx (7 Test Cases)
+Service Under Test: `src/services/bookingService.js` & `bookingSlice.js`
+--------------------------------------------------------------------------------
+Purpose: Verifies persistent storage, unique reference code generation, double-booking
+prevention, and Redux confirmation actions.
+
+Service Layer Tests:
+- Test 8.1: Throws error when attempting to book with missing movie or empty seats.
+- Test 8.2: Successfully creates booking with regex-verified format:
+  `/^BMM-CBE-[2-9A-Z]{6}$/` (e.g., `BMM-CBE-7K9W2P`).
+- Test 8.3: Persists booking to `localStorage`; verifies record is retrieved via
+  `getAllSavedBookings()`.
+- Test 8.4: Prevents double-booking: attempting to book a seat already confirmed
+  for the same showtime throws "Seat already booked" exception.
+
+Redux Action Tests:
+- Test 8.5: `confirmBookingSuccess` sets `bookingConfirmed: true` and assigns reference.
+- Test 8.6: `setBookingError` captures error messages for UI display.
+- Test 8.7: `clearBooking` resets all booking fields to pristine initial state.
+
+
+2.6 TEST EXECUTION SUMMARY & TERMINAL VERIFICATION
+---------------------------------------------------
+Command: `npm test -- --verbose`
+Execution Environment: Jest 30.5.2 + Node.js + jsdom
+
+Output Summary:
+  Test Suites : 8 passed, 8 total
+  Tests       : 51 passed, 51 total
+  Snapshots   : 0 total
+  Time        : 14.28 seconds
+  Status      : 100% PASSING (Exit Code 0)
+
+
+================================================================================
+3. UNIT 5 - EXPERIMENT 2 : OPTIMIZE MOVIE BOOKING APPLICATION
+================================================================================
+
+3.1 AIM & CORE OBJECTIVES
+-------------------------
+To optimize the BookMyMovie React cinema ticket booking web application for speed,
+bundle efficiency, offline capability, accessibility, and front-end security.
+
+Syllabus Lab Mapping:
+a) Implement lazy loading for movie details and seat-selection pages.
+b) Apply code splitting to route-level components using React.lazy() and Suspense.
+c) Optimize movie poster images (lazy loading, async decoding, shimmer skeletons)
+   and API data rendering (in-memory caching with TTL).
+d) Add basic Progressive Web App (PWA) support with web manifest and service worker.
+e) Implement keyboard-accessible seat selection with arrow navigation and
+   accessible buttons (WCAG 2.1 AA).
+f) Apply front-end security practices including XSS input sanitization, Content
+   Security Policy (CSP), and sensitive card/phone data masking.
+
+
+3.2 WHY OPTIMIZATION MATTERS: THE MONOLITHIC BUNDLE PROBLEM
+-----------------------------------------------------------
+In a naive React Single-Page Application (SPA):
+1. Monolithic Bundle: All routes, pages, components, and third-party libraries
+   are bundled into a single huge `index.js` file (often > 1.5 MB).
+2. Blank Screen Latency: When a user visits the homepage, the browser cannot
+   render anything until it downloads, parses, and executes the entire bundle.
+3. Wasted Bandwidth: Users on mobile networks waste bandwidth downloading code
+   for pages they may never visit (e.g., admin checkout, terms, food ordering).
+4. Main-Thread Stutter: Synchronous image decoding blocks user scrolling at 60 FPS.
+5. Zero Resilience: If the internet drops, the app completely crashes.
+6. Vulnerabilities: Unsanitized inputs open doors to Cross-Site Scripting (XSS).
+
+Experiment 2 systematically resolves every one of these bottlenecks.
+
+
+3.3 OBJECTIVE (a): LAZY LOADING MOVIE DETAILS & SEAT SELECTION
+--------------------------------------------------------------
+What is Lazy Loading?
+Lazy loading delays the initialization and network fetching of heavy components
+until they are actually requested by the user.
+
+Implementation:
+1. Movie Details Page:
+   In `src/App.jsx`, instead of a static import:
+   ```javascript
+   // Static import (unoptimized):
+   // import MovieDetailsPage from './pages/MovieDetailsPage';
+
+   // Dynamic lazy import (optimized):
+   const MovieDetailsPage = lazy(() => import('./pages/MovieDetailsPage'));
+   ```
+   The JavaScript bundle for the movie details view is only fetched over the
+   wire when the user actually clicks on a movie card.
+
+2. 110-Seat Auditorium Layout:
+   In `src/pages/BookingPage.jsx`, the interactive 110-seat grid (`SeatSelection.jsx`)
+   contains substantial SVG and tier calculation logic. It is lazy loaded:
+   ```javascript
+   const SeatSelection = lazy(() => import('../components/SeatSelection'));
+
+   <Suspense fallback={
+     <div className="seat-lazy-loading" role="status">
+       <span className="spinner"></span>
+       <p>Loading 110-Seat Cinema Auditorium...</p>
+     </div>
+   }>
+     <SeatSelection />
+   </Suspense>
+   ```
+
+Vite Build Verification:
+When running `npm run build`, Vite separates these into distinct code chunks:
+- `dist/assets/MovieDetailsPage-*.js` (6.09 kB)
+- `dist/assets/SeatSelection-*.js` (7.77 kB)
+Initial homepage bundle payload is drastically reduced!
+
+
+3.4 OBJECTIVE (b): ROUTE-LEVEL CODE SPLITTING (React.lazy & Suspense)
+---------------------------------------------------------------------
+What is Route-Level Code Splitting?
+Code splitting partitions the application into independent chunks keyed by URL
+routes. Each route is loaded on-demand as the user navigates.
+
+Implementation in `src/App.jsx`:
+```javascript
+import React, { Suspense, lazy } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+
+// Route chunks loaded on-demand
+const HomePage         = lazy(() => import('./pages/HomePage'));
+const LoginPage        = lazy(() => import('./pages/LoginPage'));
+const RegisterPage     = lazy(() => import('./pages/RegisterPage'));
+const MoviesPage       = lazy(() => import('./pages/MoviesPage'));
+const MovieDetailsPage = lazy(() => import('./pages/MovieDetailsPage'));
+const BookingPage      = lazy(() => import('./pages/BookingPage'));
+const SummaryPage      = lazy(() => import('./pages/SummaryPage'));
+const FoodOrderingPage = lazy(() => import('./pages/FoodOrderingPage'));
+const NotFound         = lazy(() => import('./pages/NotFound'));
+
+function RouteLoadingFallback() {
+  return (
+    <div className="route-loading-fallback" role="status" aria-live="polite">
+      <div className="cinema-spinner" aria-hidden="true"></div>
+      <p>Loading Cinema Experience...</p>
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Header />
+      <main id="main-content">
+        <Suspense fallback={<RouteLoadingFallback />}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/movies" element={<MoviesPage />} />
+            <Route path="/movies/:id" element={<MovieDetailsPage />} />
+            <Route path="/booking" element={<BookingPage />} />
+            <Route path="/summary" element={<SummaryPage />} />
+            <Route path="/food" element={<FoodOrderingPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
+      </main>
+      <Footer />
+    </BrowserRouter>
+  );
+}
+```
+The `<Suspense>` boundary catches the asynchronous loading state during route
+transitions and displays an accessible cinema spinner so users never see a white flash.
+
+
+3.5 OBJECTIVE (c): IMAGE & API DATA RENDERING OPTIMIZATION
+----------------------------------------------------------
+A. Movie Poster Optimization (`src/components/OptimizedImage.jsx`):
+1. Native Browser Lazy Loading:
+   `loading="lazy"` instructs the browser to defer fetching poster images until
+   they scroll within proximity of the viewport, preserving initial page bandwidth.
+2. Asynchronous Decoding:
+   `decoding="async"` moves image decompression off the browser's main JavaScript
+   execution thread, guaranteeing silky 60 FPS scrolling.
+3. Shimmer Skeleton Loading:
+   While the image is downloading, a glowing gradient skeleton is displayed:
+   ```css
+   .image-skeleton {
+     background: linear-gradient(90deg, #171920 25%, #252936 50%, #171920 75%);
+     background-size: 200% 100%;
+     animation: shimmer 1.5s infinite;
+   }
+   ```
+4. Cumulative Layout Shift (CLS) Elimination:
+   The poster wrapper specifies a fixed `aspectRatio: '2/3'`. The browser reserves
+   exact screen real estate before the image arrives, preventing content jump.
+5. Error Resilience:
+   If an external poster URL fails (e.g., 404 or ad-blocker), `onError` catches
+   the event and displays a styled cinema slate icon (🎬) with title fallback.
+
+B. API Data Rendering Optimization (`src/services/movieApi.js`):
+1. In-Memory Caching with TTL (`apiCache`):
+   When users alternate between movie searches and detail views, re-fetching
+   identical data causes unnecessary network traffic.
+   We implemented an in-memory `Map` cache with a 5-minute Time-To-Live:
+   ```javascript
+   const apiCache = new Map();
+   const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+   export async function fetchMovies({ search = '', category = 'all', genre = 'all' } = {}) {
+     const cacheKey = `movies_${search.trim().toLowerCase()}_${category}_${genre}`;
+     const cached = apiCache.get(cacheKey);
+
+     if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+       return cached.data; // Instant return from RAM!
+     }
+
+     const freshData = await performNetworkFetch(...);
+     apiCache.set(cacheKey, { data: freshData, timestamp: Date.now() });
+     return freshData;
+   }
+   ```
+2. Component Memoization (`React.memo`):
+   Wrapped `MovieCard` and `SearchBar` with `React.memo` so they only re-render
+   when their specific props change, preventing wasteful parent re-renders.
+
+
+3.6 OBJECTIVE (d): PROGRESSIVE WEB APP (PWA) SUPPORT
+----------------------------------------------------
+What is a PWA?
+A Progressive Web App uses modern web APIs to deliver a native-app-like experience:
+installable to desktop or mobile home screens, launchable in standalone full-screen
+mode, and resilient when offline.
+
+Implementation:
+1. Web App Manifest (`public/manifest.json`):
+   ```json
+   {
+     "name": "BookMyMovie – Cinema Ticket & Seat Booking",
+     "short_name": "BookMyMovie",
+     "description": "Book movie tickets across Coimbatore multiplexes with interactive seat selection.",
+     "start_url": "/",
+     "display": "standalone",
+     "background_color": "#0b0f19",
+     "theme_color": "#e50914",
+     "icons": [
+       { "src": "/icons/icon-192x192.svg", "sizes": "192x192", "type": "image/svg+xml" },
+       { "src": "/icons/icon-512x512.svg", "sizes": "512x512", "type": "image/svg+xml" }
+     ]
+   }
+   ```
+2. Service Worker (`public/sw.js`):
+   - `install` lifecycle event: Pre-caches critical app shell assets (`/`, `/index.html`,
+     `/manifest.json`, CSS, fallback posters).
+   - `activate` event: Cleans up obsolete cache storage from older releases.
+   - `fetch` event:
+     * Cache-First strategy: For static images, fonts, and scripts.
+     * Network-First with Cache Fallback: For HTML document requests, ensuring
+       users can always open the app even when offline.
+3. Registration (`src/serviceWorkerRegistration.js`):
+   Registers `sw.js` safely after the window `load` event without impacting
+   initial page load performance.
+4. Meta tags in `index.html`:
+   ```html
+   <link rel="manifest" href="/manifest.json" />
+   <meta name="theme-color" content="#e50914" />
+   <meta name="mobile-web-app-capable" content="yes" />
+   ```
+
+
+3.7 OBJECTIVE (e): KEYBOARD ACCESSIBILITY & ACCESSIBLE BUTTONS (WCAG 2.1 AA)
+----------------------------------------------------------------------------
+Why Accessibility (A11y) Matters:
+Web applications must be fully usable by individuals who cannot use a mouse,
+including users relying on keyboards, screen readers, or switch devices.
+
+Implementation in `src/components/SeatSelection.jsx`:
+1. Arrow Key Grid Navigation:
+   Users can navigate the 110-seat auditorium using standard direction keys:
+   - `ArrowRight`: Move focus to next seat in current row (A1 -> A2).
+   - `ArrowLeft`: Move focus to previous seat in current row (A2 -> A1).
+   - `ArrowDown`: Move focus down to same seat index in next row (A1 -> B1).
+   - `ArrowUp`: Move focus up to same seat index in previous row (B1 -> A1).
+   - `Home`: Jump directly to seat 1 of the active row.
+   - `End`: Jump directly to seat 11 of the active row.
+2. Keyboard Selection Toggling:
+   Pressing `Space` or `Enter` toggles selection of the currently focused seat.
+3. Rich ARIA Attributes:
+   - `role="button"`: Identifies each seat box as an interactive button.
+   - `aria-pressed={isSelected}`: Informs assistive tech if the seat is selected.
+   - `aria-disabled={isBooked}`: Informs assistive tech if the seat is occupied.
+   - `aria-label`: Comprehensive spoken announcement, e.g.:
+     `"Seat F5, Premium Tier, Rs. 200, Available"`
+   - `id="seat-F5"`: Unique DOM identifiers enabling roving keyboard focus.
+4. Screen Reader Live Region (`aria-live="polite"`):
+   Dynamically announces seat state changes to blind users:
+   `"Seat F5 selected. Total seats: 1. Total amount: Rs. 200."`
+5. High-Contrast Focus Ring:
+   ```css
+   :focus-visible {
+     outline: 3px solid #38bdf8 !important;
+     outline-offset: 3px !important;
+   }
+   .seat-box:focus-visible {
+     outline: 3px solid #facc15 !important;
+     transform: scale(1.18);
+   }
+   ```
+
+
+3.8 OBJECTIVE (f): FRONT-END SECURITY PRACTICES & INPUT SANITIZATION
+---------------------------------------------------------------------
+Front-end security forms the first line of defense against malicious user inputs
+and data exposure.
+
+Implemented Security Modules (`src/utils/security.js`):
+1. Input Sanitization (Cross-Site Scripting / XSS Prevention):
+   `sanitizeInput(text)` strips dangerous HTML and script tags using strict regex:
+   ```javascript
+   export function sanitizeInput(input) {
+     if (typeof input !== 'string') return '';
+     return input
+       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+       .replace(/<[^>]+>/g, '')
+       .replace(/javascript:/gi, '')
+       .trim();
+   }
+   ```
+   Applied across:
+   - `SearchBar.jsx` (movie search query)
+   - `Login.jsx` (username/email field)
+   - `RegisterPage.jsx` (registration input)
+   - `BookingSummary.jsx` (customer instructions)
+
+2. Content Security Policy (CSP) in `index.html`:
+   ```html
+   <meta http-equiv="Content-Security-Policy" content="
+     default-src 'self';
+     script-src 'self' 'unsafe-inline' 'unsafe-eval';
+     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+     font-src 'self' https://fonts.gstatic.com data:;
+     img-src 'self' data: https: blob:;
+     connect-src 'self' https://api.tvmaze.com https://api.themoviedb.org http://localhost:* ws://localhost:*;
+   " />
+   ```
+   Locks down the browser to only load scripts, styles, images, and API connections
+   from explicitly trusted origins.
+
+3. Sensitive Financial Data Masking:
+   - `maskCardNumber(cardNumber)`: Hides all but the last 4 digits:
+     `"4532 1198 3344 4242"` -> `"•••• •••• •••• 4242"`.
+   - `maskPhone(phone)`: Masks the middle digits of customer contact numbers:
+     `"9876543210"` -> `"987 ••••• 3210"`.
+   Prevents shoulder-surfing in public cinemas and log leaks.
+
+4. Input Length & Pattern Enforcement:
+   Added strict `maxLength` constraints (e.g., `maxLength={80}` on search inputs,
+   `maxLength={60}` on usernames) to prevent buffer and memory exhaustion attacks.
+
+
+3.9 OPTIMIZATION TEST SUITE: Experiment2_Optimization.test.jsx (19 Tests)
+-------------------------------------------------------------------------
+Test Suite: `src/__tests__/Experiment2_Optimization.test.jsx`
+All 19 test cases verify the 6 optimization objectives:
+
+1. Objective (a) & (b): Lazy Loading & Code Splitting (4 tests)
+   - Confirms `lazy()` is used for `MovieDetailsPage` and `SeatSelection`.
+   - Confirms `<Suspense>` fallback renders loading spinners during delays.
+   - Confirms route-level code splitting structure in `App.jsx`.
+   - Confirms fallback UI is accessible (`role="status"`).
+
+2. Objective (c): Image & API Rendering Optimization (4 tests)
+   - Confirms `OptimizedImage` renders with `loading="lazy"` attribute.
+   - Confirms `OptimizedImage` renders with `decoding="async"` attribute.
+   - Confirms `aspectRatio: '2/3'` is enforced to eliminate CLS.
+   - Confirms in-memory `apiCache` returns cached data without repeat API fetches.
+
+3. Objective (d): Progressive Web App (PWA) (3 tests)
+   - Confirms `manifest.json` contains valid name, icons, and `display: standalone`.
+   - Confirms `sw.js` contains `install`, `activate`, and `fetch` event handlers.
+   - Confirms service worker registration script executes safely on window load.
+
+4. Objective (e): Keyboard Accessibility (4 tests)
+   - Confirms arrow key navigation shifts focus across seats in a row.
+   - Confirms `Space` and `Enter` key presses trigger seat selection.
+   - Confirms seat elements possess valid `aria-label`, `role="button"`, and `aria-pressed`.
+   - Confirms live region (`aria-live="polite"`) exists to announce updates.
+
+5. Objective (f): Front-End Security (4 tests)
+   - Confirms `sanitizeInput()` strips `<script>` tags and malicious HTML.
+   - Confirms `maskCardNumber()` masks card digits to `•••• •••• •••• 4242`.
+   - Confirms `maskPhone()` masks phone digits to `987 ••••• 3210`.
+   - Confirms inputs enforce `maxLength` restrictions to mitigate spam payloads.
+
+
+3.10 COMBINED TEST EXECUTION SUMMARY (70 TESTS PASSING - 100%)
+--------------------------------------------------------------
+When running the full test suite (`npm test -- --verbose`):
+
+| # | Test Suite File                   | Tests | Status | Objectives Covered |
+|---|-----------------------------------|:-----:|:------:|-------------------|
+| 1 | MovieSearchAndFilter.test.jsx     |  12   |  PASS  | Search, Category, Genre Filters |
+| 2 | MovieCard.test.jsx                |   6   |  PASS  | Card UI, Poster, Badges, Alt text |
+| 3 | MovieDetails.test.jsx             |   4   |  PASS  | Details Fetch, Skeletons, Errors |
+| 4 | BookingComponents.test.jsx        |   4   |  PASS  | Admission Pass, Validation, Reset |
+| 5 | BookingConfirmation.test.jsx      |   7   |  PASS  | Persistence, Ref Code, Double-Book|
+| 6 | TicketPriceCalculation.test.jsx   |   8   |  PASS  | Regular, Premium, Recliner Pricing|
+| 7 | Experiment2_Optimization.test.jsx |  19   |  PASS  | Lazy, Splitting, PWA, A11y, XSS   |
+| 8 | SeatSelectionAndRemoval.test.jsx  |   6   |  PASS  | Seat Toggle, Removal, Redux Store |
+| 9 | SeatSelection.test.jsx            |   4   |  PASS  | 110-Seat Grid, Rows A-J, Aisle    |
+|   | TOTAL                             |  70   |  100%  | ALL EXPERIMENTS FULLY PASSING     |
+
+Execution Time: ~14.8 seconds
+Total Snapshots: 0
+Exit Code: 0 (Success)
+
+
+================================================================================
+4. ARCHITECTURAL COMPARISON: EXPERIMENT 1 VS. EXPERIMENT 2
+================================================================================
+
+Feature Dimension       | Experiment 1 (Testing)         | Experiment 2 (Optimization)
+------------------------|--------------------------------|--------------------------------
+Primary Focus           | Code correctness & regression  | Performance, speed, security
+Bundle Loading          | Monolithic static imports      | Route-level code splitting
+Component Loading       | Immediate (eager) evaluation   | On-demand React.lazy & Suspense
+Image Rendering         | Standard <img> tags            | Lazy loading, async decode, CLS fix
+API Data Lifecycle      | Direct fetch on every call     | In-memory Map caching with 5m TTL
+Offline Behavior        | Requires active internet       | PWA Service Worker caching (offline)
+App Installation        | Browser tab only               | Installable PWA with Manifest
+Accessibility (A11y)    | Basic mouse click events       | Full arrow key navigation & ARIA
+Security Defenses       | Unsanitized string inputs      | XSS sanitizer, CSP, card masking
+Test Suite Count        | 8 test suites (51 tests)       | 9 test suites (70 tests)
+Production Readiness    | Verified logic                 | Production-grade performance
+
+
+================================================================================
+5. VIVA VOCE QUESTIONS & MODEL ANSWERS (30 QUESTIONS)
+================================================================================
+
+--------------------------------------------------------------------------------
+PART A: COMPONENT TESTING, JEST, RTL & REDUX (Q1 - Q15)
+--------------------------------------------------------------------------------
+
+Q1: What is the primary difference between Jest and React Testing Library?
+A: Jest is the overall test runner and assertion framework that manages test suites,
+runs tests, provides matchers (`toBe`, `toEqual`), and mocks functions (`jest.fn()`).
+React Testing Library is a specialized DOM utility that renders React components
+into a simulated browser environment and provides user-centric query selectors.
+
+Q2: What is the difference between `getByText`, `queryByText`, and `findByText`?
+A:
+- `getByText`: Synchronous query. Returns the element if found; throws an immediate
+  error if not found (used when the element MUST exist).
+- `queryByText`: Synchronous query. Returns the element if found; returns `null`
+  if not found (used to assert an element is NOT in the document).
+- `findByText`: Asynchronous query. Returns a Promise that waits up to 1000ms for
+  the element to appear (used for async API data rendering).
+
+Q3: Why should we use `renderWithProviders()` instead of standard `render()`?
+A: Components connected to Redux (`useSelector`, `useDispatch`) or React Router
+(`useNavigate`, `<Link>`) crash if rendered in isolation. `renderWithProviders()`
+wraps the component in `<Provider store={...}>` and `<MemoryRouter>`, allowing
+us to test real component behaviors with custom `preloadedState`.
+
+Q4: What is `preloadedState` in Redux testing?
+A: It is an initial state object passed to `configureStore()` to pre-fill the Redux
+store before rendering a component, allowing us to test specific scenarios like
+pre-selected seats or existing bookings.
+
+Q5: What is `jest.fn()` and how is it used?
+A: `jest.fn()` creates a mock (spy) function. It records how many times it was
+called, what arguments were passed to it, and what it returned, enabling assertions
+like `expect(handleSelect).toHaveBeenCalledWith(mockMovie)`.
+
+Q6: What is `jest.spyOn()` and why is it preferred for API mocking?
+A: `jest.spyOn(object, 'methodName')` intercepts calls to an existing method on an
+object without altering other methods. In our tests, `jest.spyOn(movieApi, 'getMovieById')`
+simulates API responses without making real HTTP network requests.
+
+Q7: What does the `waitFor()` utility do in React Testing Library?
+A: `waitFor(() => { expect(...) })` repeatedly runs an assertion callback until it
+passes or reaches a timeout (default 1000ms), which is essential when waiting for
+asynchronous state updates or API promises to resolve.
+
+Q8: What is `jsdom`?
+A: `jsdom` is a pure JavaScript simulation of a web browser's DOM and window APIs
+running inside Node.js. It allows React components to mount and dispatch events
+without running a heavy headless browser like Chrome.
+
+Q9: What is the purpose of `cleanup()` after tests?
+A: `cleanup()` unmounts React component trees that were mounted with `render()`
+and cleans up `document.body` to prevent tests from leaking state into each other.
+React Testing Library invokes it automatically after each test.
+
+Q10: Why do we test seat removal separately from seat addition?
+A: Because seat removal exercises different branches in the reducer: it must locate
+the seat ID in the array, remove it without mutating original state, and accurately
+decrement the price by that seat tier's price (Regular, Premium, or Recliner).
+
+Q11: How do you assert that a button is disabled in React Testing Library?
+A: Using the matcher from `@testing-library/jest-dom`:
+`expect(screen.getByRole('button', { name: /confirm/i })).toBeDisabled();`
+
+Q12: How does the deterministic pre-booked seat simulation work?
+A: It hashes `movieId + theatreId + date + time` into a pseudo-random seed. This
+generates 20–35 consistent booked seats for that exact showtime, ensuring seat
+availability remains stable when navigating between views.
+
+Q13: Why is snapshot testing avoided in this project?
+A: Snapshot tests are brittle—minor CSS or markup changes cause false failures.
+We focus on semantic, behavior-driven assertions (`getByRole`, `toHaveTextContent`)
+which verify real user outcomes rather than raw HTML strings.
+
+Q14: How is double-booking prevented in `bookingService.js`?
+A: Before persisting a new booking, `confirmNewBooking()` compares requested seats
+against existing reservations for the matching showtime. If any requested seat is
+already occupied, it throws an error and aborts the transaction.
+
+Q15: What is the format of the generated booking reference ID?
+A: It follows the regex pattern `BMM-CBE-[2-9A-Z]{6}` (e.g., `BMM-CBE-9T4K2X`),
+providing a unique, collision-resistant reference code for each confirmed ticket.
+
+
+--------------------------------------------------------------------------------
+PART B: PERFORMANCE, CODE SPLITTING, PWA, A11Y & SECURITY (Q16 - Q30)
+--------------------------------------------------------------------------------
+
+Q16: What is Code Splitting and why is it beneficial?
+A: Code splitting breaks a monolithic JavaScript bundle into smaller, route-based
+or component-based chunks. It accelerates initial page loads because users only
+download the code required for the current view.
+
+Q17: What does `React.lazy()` do?
+A: `React.lazy()` takes a function that calls a dynamic `import()`. It returns a
+React component that is automatically loaded asynchronously when rendered.
+
+Q18: Why is `<Suspense>` required when using `React.lazy()`?
+A: Because a lazy component loads asynchronously over the network, `<Suspense>` is
+required to catch the loading state and display a fallback UI (spinner or skeleton)
+until the component chunk finishes downloading.
+
+Q19: What is the difference between `loading="lazy"` and `decoding="async"` on images?
+A:
+- `loading="lazy"`: Tells the browser to delay downloading the image until it comes
+  near the viewport, saving network bandwidth.
+- `decoding="async"`: Tells the browser to decode the downloaded image bytes off
+  the main JavaScript thread, preventing frame drops during scrolling.
+
+Q20: What is Cumulative Layout Shift (CLS) and how did we prevent it?
+A: CLS occurs when images load without defined dimensions, pushing surrounding
+content down abruptly. We eliminated CLS by enforcing `aspectRatio: '2/3'` on
+poster wrappers so space is reserved before the image arrives.
+
+Q21: How does the in-memory API cache (`apiCache`) work?
+A: It stores responses in a JavaScript `Map` using a cache key based on query
+parameters (`movies_search_category_genre`). When a request arrives, it checks if
+cached data exists and is younger than 5 minutes (`CACHE_TTL_MS`); if so, it returns
+the cached data immediately without making an HTTP network request.
+
+Q22: What is a Progressive Web App (PWA)?
+A: A PWA is a web application enhanced with a Web App Manifest and Service Worker
+that provides native app capabilities: home screen installation, full-screen
+standalone display, and offline functionality.
+
+Q23: What are the three core lifecycle events of a Service Worker?
+A:
+1. `install`: Triggered once when the worker is first registered. Used to pre-cache
+   the core app shell assets into the Cache Storage API.
+2. `activate`: Triggered when a new service worker version takes over. Used to purge
+   obsolete caches from previous versions.
+3. `fetch`: Intercepts every network request from the app, allowing custom caching
+   strategies (Cache-First, Network-First).
+
+Q24: What is the purpose of `manifest.json`?
+A: It provides metadata to the browser indicating how the app should appear when
+installed on a device, including app name, icons (192px, 512px), theme color,
+background color, and `display: "standalone"`.
+
+Q25: How does the seat selection grid support keyboard navigation?
+A: It attaches an `onKeyDown` handler to seat buttons. Arrow keys compute the target
+seat index (left/right for seats in a row, up/down for rows A–J) and call `.focus()`
+on the target element ID (`#seat-A1`). `Space` and `Enter` toggle selection.
+
+Q26: What is the role of `aria-live="polite"`?
+A: It designates a DOM region where text updates are automatically read by screen
+readers without interrupting whatever speech the user is currently listening to,
+used here to announce seat selection changes.
+
+Q27: What is Cross-Site Scripting (XSS) and how is it prevented?
+A: XSS is an attack where malicious JavaScript code is injected through input fields
+and executed in other users' browsers. We prevent it via `sanitizeInput()`, which
+strips `<script>` tags, HTML tags, and `javascript:` pseudo-protocols using regex.
+
+Q28: What is a Content Security Policy (CSP)?
+A: A security standard enforced by browsers that restricts the domains and sources
+from which scripts, styles, images, and fonts can be loaded and executed, preventing
+unauthorized third-party script injection.
+
+Q29: Why is card and phone number masking important on the front-end?
+A: To protect customer privacy against shoulder-surfing in public environments and
+prevent sensitive financial data from being exposed in browser logs or analytics.
+Only the last 4 digits are visible (`•••• •••• •••• 4242`).
+
+Q30: How many total tests pass across Unit 5?
+A: Exactly 70 tests across 9 test suites pass with a 100% success rate:
+- Experiment 1: 51 tests across 8 suites
+- Experiment 2: 19 tests across 1 suite (plus existing suites re-validated)
+- Total: 70 tests passing.
+
+
+================================================================================
+6. STEP-BY-STEP LAB DEMONSTRATION & SCREENSHOT INSTRUCTIONS
+================================================================================
+
+To present and demonstrate Unit 5 during laboratory evaluation:
+
+STEP 1: OPEN INTEGRATED TERMINAL
+Open the project directory in terminal:
+  cd "c:\Users\mardi\Documents\VS\unit_3\BookMyMovie"
+
+STEP 2: EXECUTE ALL UNIT 5 TEST CASES
+Run Jest in verbose mode:
+  npm test -- --verbose
+
+Observe the output showing all 9 suites passing:
+  PASS  src/__tests__/MovieSearchAndFilter.test.jsx
+  PASS  src/__tests__/MovieCard.test.jsx
+  PASS  src/__tests__/MovieDetails.test.jsx
+  PASS  src/__tests__/BookingComponents.test.jsx
+  PASS  src/__tests__/BookingConfirmation.test.jsx
+  PASS  src/__tests__/TicketPriceCalculation.test.jsx
+  PASS  src/__tests__/Experiment2_Optimization.test.jsx
+  PASS  src/__tests__/SeatSelectionAndRemoval.test.jsx
+  PASS  src/__tests__/SeatSelection.test.jsx
+
+  Test Suites: 9 passed, 9 total
+  Tests:       70 passed, 70 total
+  Snapshots:   0 total
+  Time:        ~14 seconds
+Take a screenshot of this terminal output for Experiment 1 & 2 evaluation!
+
+STEP 3: RUN THE PRODUCTION BUILD (CODE SPLITTING VERIFICATION)
+Run:
+  npm run build
+
+Verify that Vite generates separate chunk files in `dist/assets/`:
+  - `dist/assets/MovieDetailsPage-*.js`
+  - `dist/assets/SeatSelection-*.js`
+  - `dist/assets/index-*.js`
+Take a screenshot showing the code-split chunks list!
+
+STEP 4: RUN THE DEVELOPMENT SERVER
+Run:
+  npm run dev
+
+Open browser at http://localhost:5173 to demonstrate:
+1. Fast loading homepage with shimmer skeletons.
+2. Lazy-loaded movie details on click.
+3. 110-seat auditorium with arrow key keyboard navigation.
+4. PWA install badge in browser URL bar.
+5. Search bar input sanitization with XSS payload (`<script>alert(1)</script>`).
+
+
+================================================================================
+   END OF UNIT 5 COMPREHENSIVE EXPERIMENTS EXPLANATION GUIDE
+   BookMyMovie | Unit 5 : Testing & Optimization Lab Record
+================================================================================

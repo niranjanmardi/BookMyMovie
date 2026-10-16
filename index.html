@@ -27,7 +27,7 @@
     <!-- ==============================================================================
          Experiment 2: Front-End Security & CSP (Requirement f)
          ============================================================================== -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https://api.themoviedb.org https://image.tmdb.org http://localhost:* ws://localhost:*;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https://api.restful-api.dev https://api.themoviedb.org https://image.tmdb.org https://api.tvmaze.com http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:* wss:; worker-src 'self' blob:;" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
   </head>
   <body>

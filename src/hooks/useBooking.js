@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
   setMovie,
@@ -20,9 +20,11 @@ import { ROW_CONFIG, SEAT_PRICES, TOTAL_SEATS_PER_SCREEN } from '../data/seatLay
 import {
   buildShowKey,
   getBookedSeatsForShow,
+  syncShowBookedSeats,
   confirmNewBooking,
   getAllSavedBookings,
 } from '../services/bookingService.js';
+import { broadcastChannel } from '../services/cloudSyncService.js';
 import { createBooking } from '../services/bookingApiService.js';
 import { FALLBACK_MOVIES_2026 } from '../data/fallbackMovies.js';
 
@@ -64,11 +66,58 @@ export function useBooking() {
     bookingState.selectedTime,
   ]);
 
-  // Booked seats for current show
+  // Reactive cloud-synced booked seats state
+  const [cloudSeats, setCloudSeats] = useState([]);
+
+  // Fetch latest booked seats from cloud whenever screening showKey changes
+  useEffect(() => {
+    if (!currentShowKey) {
+      setCloudSeats([]);
+      return;
+    }
+
+    let isSubscribed = true;
+    syncShowBookedSeats(currentShowKey)
+      .then((seats) => {
+        if (isSubscribed && Array.isArray(seats)) {
+          setCloudSeats(seats);
+        }
+      })
+      .catch(() => {});
+
+    // Listen for local DOM seat updates
+    const handleSeatsUpdated = (e) => {
+      if (e.detail?.showKey === currentShowKey && Array.isArray(e.detail?.bookedSeats)) {
+        setCloudSeats((prev) => Array.from(new Set([...prev, ...e.detail.bookedSeats])));
+      }
+    };
+    window.addEventListener('bmm_seats_updated', handleSeatsUpdated);
+
+    // Listen for cross-tab / cross-window broadcast updates
+    const handleBroadcast = (e) => {
+      if (e.data?.type === 'SEATS_BOOKED' && e.data?.showKey === currentShowKey && Array.isArray(e.data?.seats)) {
+        setCloudSeats((prev) => Array.from(new Set([...prev, ...e.data.seats])));
+      }
+    };
+    if (broadcastChannel) {
+      broadcastChannel.addEventListener('message', handleBroadcast);
+    }
+
+    return () => {
+      isSubscribed = false;
+      window.removeEventListener('bmm_seats_updated', handleSeatsUpdated);
+      if (broadcastChannel) {
+        broadcastChannel.removeEventListener('message', handleBroadcast);
+      }
+    };
+  }, [currentShowKey]);
+
+  // Combined booked seats: deterministic pre-booked + local user confirmed + cloud-synced seats
   const bookedSeatsForCurrentShow = useMemo(() => {
     if (!currentShowKey) return [];
-    return getBookedSeatsForShow(currentShowKey, bookingState.bookingConfirmed);
-  }, [currentShowKey, bookingState.bookingConfirmed]);
+    const local = getBookedSeatsForShow(currentShowKey, bookingState.bookingConfirmed);
+    return Array.from(new Set([...local, ...cloudSeats]));
+  }, [currentShowKey, bookingState.bookingConfirmed, cloudSeats]);
 
   // Filter movies by search query
   const filteredMovies = useMemo(() => {

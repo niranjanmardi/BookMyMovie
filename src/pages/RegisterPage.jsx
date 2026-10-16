@@ -22,21 +22,21 @@ function RegisterPage() {
     }
   }, [isAuthenticated, navigate]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
 
     // Security: sanitize username input
     const cleanUsername = sanitizeInput(usernameInput);
-    const result = register(cleanUsername, passwordInput, confirmInput);
+    const result = await register(cleanUsername, passwordInput, confirmInput);
 
     if (result.success) {
       setSuccessMessage(
         '🎉 Account created successfully! Redirecting to login…'
       );
       // Redirect to login after a short delay so the user sees the message
-      setTimeout(() => navigate('/login'), 2000);
+      setTimeout(() => navigate('/login'), 1500);
     } else {
       setErrorMessage(result.message);
     }
