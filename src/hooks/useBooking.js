@@ -31,13 +31,19 @@ import { FALLBACK_MOVIES_2026 } from '../data/fallbackMovies.js';
 export function useBooking() {
   const dispatch = useDispatch();
   const bookingState = useSelector((state) => state.booking);
+  const authState = useSelector((state) => state.auth);
+  const currentUsername = authState?.user?.username;
 
   // Available 8 days (Today + 7 days)
   const availableDates = useMemo(() => getAvailableBookingDates(7), []);
   const selectedDate = bookingState.selectedDate || availableDates[0];
 
-  // Saved bookings from localStorage (reactive state)
-  const [allBookings, setAllBookings] = useState(() => getAllSavedBookings());
+  // Saved bookings for the active user (reactive state)
+  const [allBookings, setAllBookings] = useState(() => getAllSavedBookings(currentUsername));
+
+  useEffect(() => {
+    setAllBookings(getAllSavedBookings(currentUsername));
+  }, [currentUsername]);
 
   const lastBooking = useMemo(() => {
     return allBookings && allBookings.length > 0 ? allBookings[0] : null;
@@ -227,7 +233,7 @@ export function useBooking() {
       }
 
       dispatch(confirmBookingSuccess(record.bookingId));
-      setAllBookings(getAllSavedBookings());
+      setAllBookings(getAllSavedBookings(currentUsername));
       return true;
     } catch (err) {
       dispatch(
@@ -237,6 +243,7 @@ export function useBooking() {
     }
   }, [
     dispatch,
+    currentUsername,
     bookingState.selectedMovie,
     bookingState.selectedTheatre,
     selectedDate,

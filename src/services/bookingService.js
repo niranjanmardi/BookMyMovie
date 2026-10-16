@@ -12,6 +12,7 @@
 
 import { ROW_CONFIG, calculateSeatsPriceBreakdown } from '../data/seatLayout.js';
 import { syncCloudBookedSeats, saveCloudBookingRecord } from './cloudSyncService.js';
+import { getUser } from './axiosInstance.js';
 
 const STORAGE_KEY_CONFIRMED = 'bmm_confirmed_show_seats';
 const STORAGE_KEY_BOOKINGS = 'bmm_my_bookings_list';
@@ -133,13 +134,16 @@ export function generateBookingReference() {
  * 3. Adds record to My Bookings list in localStorage
  * 4. Updates legacy single-booking key for backward compatibility
  */
-export function confirmNewBooking({
-  movie,
-  theatre,
-  date,
-  showtime,
-  seats = [],
-}) {
+export function confirmNewBooking(bookingData) {
+  const {
+    movie,
+    theatre,
+    date,
+    showtime,
+    seats = [],
+    username: customUsername,
+  } = bookingData || {};
+
   if (!movie || !theatre || !date || !showtime || seats.length === 0) {
     throw new Error('Incomplete booking details. Movie, theatre, date, showtime, and seats are required.');
   }
@@ -156,9 +160,13 @@ export function confirmNewBooking({
   const bookingReference = generateBookingReference();
   const pricing = calculateSeatsPriceBreakdown(seats);
 
+  const currentUser = getUser();
+  const username = currentUser?.username || customUsername || 'guest';
+
   const bookingRecord = {
     bookingId: bookingReference,
     reference: bookingReference,
+    username,
     showKey,
     movie: {
       id: movie.id,
@@ -240,23 +248,31 @@ export async function syncShowBookedSeats(showKey) {
 }
 
 /**
- * Retrieves all saved bookings for the user
+ * Retrieves all saved bookings for the user.
+ * If filterUsername is passed, returns only bookings associated with that user.
  */
-export function getAllSavedBookings() {
+export function getAllSavedBookings(filterUsername) {
   try {
     if (typeof localStorage === 'undefined') return [];
     const rawList = localStorage.getItem(STORAGE_KEY_BOOKINGS);
+    let list = [];
     if (rawList) {
-      return JSON.parse(rawList);
+      list = JSON.parse(rawList);
+    } else {
+      // Fallback to legacy single booking if list is empty
+      const legacy = localStorage.getItem(STORAGE_KEY_LEGACY);
+      if (legacy) {
+        list = [JSON.parse(legacy)];
+      }
     }
 
-    // Fallback to legacy single booking if list is empty
-    const legacy = localStorage.getItem(STORAGE_KEY_LEGACY);
-    if (legacy) {
-      return [JSON.parse(legacy)];
+    if (!filterUsername) {
+      return list;
     }
 
-    return [];
+    return list.filter(
+      (b) => !b.username || b.username.toLowerCase() === filterUsername.toLowerCase()
+    );
   } catch (err) {
     console.warn('Error reading saved bookings:', err);
     return [];

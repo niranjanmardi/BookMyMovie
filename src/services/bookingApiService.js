@@ -1,4 +1,4 @@
-import axiosInstance from './axiosInstance';
+import axiosInstance, { getUser } from './axiosInstance';
 import { calculateSeatsPriceBreakdown } from '../data/seatLayout.js';
 
 const API_BASE = '/api/bookings';
@@ -36,16 +36,30 @@ function generateBookingId() {
 /**
  * a) GET: Fetch Booking History (Protected Endpoint)
  * Automatically attaches Authorization Bearer token via Axios interceptor.
+ * Filters by logged-in user so each user sees only their own booked movies,
+ * with an optional master view for admin.
  */
-export async function getBookingHistory() {
+export async function getBookingHistory(options = {}) {
+  const currentUser = getUser();
+  const currentUsername = currentUser?.username;
+  const showAll = options.all === true && currentUsername?.toLowerCase() === 'admin';
+
   try {
-    const response = await axiosInstance.get(API_BASE);
+    const queryUrl = showAll ? `${API_BASE}?all=true` : API_BASE;
+    const response = await axiosInstance.get(queryUrl);
     const data = response.data;
     if (Array.isArray(data)) {
       saveLocalBookings(data);
-      return data;
+      if (showAll || !currentUsername) return data;
+      return data.filter(
+        (b) => !b.username || b.username.toLowerCase() === currentUsername.toLowerCase()
+      );
     }
-    return getLocalBookings();
+    const local = getLocalBookings();
+    if (showAll || !currentUsername) return local;
+    return local.filter(
+      (b) => !b.username || b.username.toLowerCase() === currentUsername.toLowerCase()
+    );
   } catch (err) {
     // If backend rejected with 401/403 Unauthorized, propagate error
     if (err.response && (err.response.status === 401 || err.response.status === 403)) {
@@ -53,7 +67,11 @@ export async function getBookingHistory() {
     }
     // If network offline, fallback to local cache
     console.info('[bookingApiService] Serving GET bookings from persistent cache:', err.message);
-    return getLocalBookings();
+    const local = getLocalBookings();
+    if (showAll || !currentUsername) return local;
+    return local.filter(
+      (b) => !b.username || b.username.toLowerCase() === currentUsername.toLowerCase()
+    );
   }
 }
 
@@ -100,9 +118,13 @@ export async function createBooking(bookingData) {
   const newId = generateBookingId();
   const pricing = calculateSeatsPriceBreakdown(bookingData.seats);
 
+  const currentUser = getUser();
+  const username = currentUser?.username || bookingData.username || 'guest';
+
   const payload = {
     bookingId: newId,
     reference: newId,
+    username,
     movie: {
       id: bookingData.movie.id,
       title: bookingData.movie.title,

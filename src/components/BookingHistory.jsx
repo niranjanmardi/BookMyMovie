@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import useAuth from '../hooks/useAuth';
 import {
   getBookingHistory,
   updateBooking,
@@ -14,6 +15,10 @@ const SHOWTIMED_OPTIONS = [
 ];
 
 function BookingHistory() {
+  const { username } = useAuth();
+  const isAdmin = username?.toLowerCase() === 'admin';
+  const [viewScope, setViewScope] = useState('mine'); // 'mine' or 'all'
+
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -29,19 +34,20 @@ function BookingHistory() {
   const [cancellingId, setCancellingId] = useState(null);
   const [actionSuccessMsg, setActionSuccessMsg] = useState(null);
 
-  // 1. GET: Fetch Booking History
+  // 1. GET: Fetch Booking History (scoped to current user account)
   const fetchBookings = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await getBookingHistory();
+      const showAll = isAdmin && viewScope === 'all';
+      const data = await getBookingHistory({ all: showAll });
       setBookings(data);
     } catch (err) {
       setError(err.message || 'Failed to load booking history.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAdmin, viewScope, username]);
 
   useEffect(() => {
     fetchBookings();
@@ -142,6 +148,13 @@ function BookingHistory() {
           <p className="history-subtitle">
             View, modify, or cancel movie ticket reservations using GET, PUT, and DELETE APIs
           </p>
+          {username && (
+            <div style={{ marginTop: '8px' }}>
+              <span style={{ fontSize: '12px', background: 'rgba(59, 130, 246, 0.15)', border: '1px solid #3b82f6', color: '#93c5fd', padding: '3px 10px', borderRadius: '12px' }}>
+                👤 Active Account: <strong>{username}</strong>
+              </span>
+            </div>
+          )}
         </div>
         <button
           type="button"
@@ -153,6 +166,28 @@ function BookingHistory() {
           {loading ? 'Fetching...' : '🔄 Refresh List (GET)'}
         </button>
       </div>
+
+      {/* Admin Scope Selector: allows toggling between Admin personal bookings and all customer bookings */}
+      {isAdmin && (
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className={viewScope === 'mine' ? 'btn-primary' : 'btn-secondary'}
+            onClick={() => setViewScope('mine')}
+            style={{ fontSize: '13px', padding: '8px 16px', borderRadius: '8px' }}
+          >
+            👤 My Admin Bookings
+          </button>
+          <button
+            type="button"
+            className={viewScope === 'all' ? 'btn-primary' : 'btn-secondary'}
+            onClick={() => setViewScope('all')}
+            style={{ fontSize: '13px', padding: '8px 16px', borderRadius: '8px' }}
+          >
+            👥 All Users' Bookings (Master Overview)
+          </button>
+        </div>
+      )}
 
       {/* Success Notification Banner */}
       {actionSuccessMsg && (
@@ -187,8 +222,22 @@ function BookingHistory() {
       {!loading && !error && bookings.length === 0 && (
         <div className="empty-history-card">
           <div className="empty-icon">🎟️</div>
-          <h3>No Bookings Found</h3>
-          <p>You haven't made any cinema ticket reservations yet.</p>
+          <h3>No Bookings Found for {username || 'this account'}</h3>
+          <p>
+            {isAdmin && viewScope === 'mine'
+              ? 'No tickets have been booked directly by this admin account yet. Switch to "All Users\' Bookings" above to see tickets booked by other accounts (such as mardi).'
+              : "You haven't made any cinema ticket reservations with this account yet."}
+          </p>
+          {isAdmin && viewScope === 'mine' && (
+            <button
+              type="button"
+              className="btn-primary"
+              style={{ marginTop: '14px' }}
+              onClick={() => setViewScope('all')}
+            >
+              View All User Bookings (Master Overview)
+            </button>
+          )}
         </div>
       )}
 
@@ -212,6 +261,21 @@ function BookingHistory() {
                     >
                       {b.status || 'CONFIRMED'}
                     </span>
+                    {b.username && (
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          background: '#1e293b',
+                          border: '1px solid #475569',
+                          color: '#93c5fd',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          marginLeft: '6px',
+                        }}
+                      >
+                        👤 {b.username}
+                      </span>
+                    )}
                   </div>
                   <span className="history-time-stamp">
                     {b.confirmedAt ? `Booked: ${b.confirmedAt}` : 'Today'}

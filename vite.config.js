@@ -450,7 +450,9 @@ function mockApiPlugin() {
             return res.end(JSON.stringify({ error: check.error }));
           }
 
-          const urlParts = url.split('/');
+          const username = check.payload?.username || 'default_user';
+          const [pathOnly, queryString] = url.split('?');
+          const urlParts = pathOnly.split('/');
           const bookingId = urlParts.length > 3 ? decodeURIComponent(urlParts[3]) : null;
 
           if (req.method === 'GET') {
@@ -465,14 +467,25 @@ function mockApiPlugin() {
               res.statusCode = 200;
               return res.end(JSON.stringify(found));
             }
+
+            const queryParams = new URLSearchParams(queryString || '');
+            const showAll = queryParams.get('all') === 'true' && username.toLowerCase() === 'admin';
+
+            const userBookings = showAll
+              ? inMemoryBookings
+              : inMemoryBookings.filter(
+                  (b) => !b.username || b.username.toLowerCase() === username.toLowerCase()
+                );
+
             res.statusCode = 200;
-            return res.end(JSON.stringify(inMemoryBookings));
+            return res.end(JSON.stringify(userBookings));
           }
 
           if (req.method === 'POST') {
             const body = await parseBody(req);
             const newBooking = {
               ...body,
+              username: body.username || username,
               status: 'CONFIRMED',
               createdAt: new Date().toISOString(),
             };

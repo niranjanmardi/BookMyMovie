@@ -91,6 +91,7 @@ export function AuthProvider({ children }) {
               user: result.user,
             })
           );
+          dispatch(clearBooking());
           setLoading(false);
           return { success: true, token: result.token, user: result.user };
         }
@@ -116,6 +117,9 @@ export function AuthProvider({ children }) {
     await authService.logout();
     dispatch(logoutSuccess());
     dispatch(clearBooking());
+    try {
+      localStorage.removeItem('bm_last_booking');
+    } catch {}
     setError(null);
     setLoading(false);
   }, [dispatch]);
